@@ -8,3 +8,4 @@ echo "p inccnf" > $newCNF
 cat $CNF | grep -v c >> $newCNF
 cat $cubeFile >> $newCNF
 $solverPath $newCNF | egrep -o "s UNSAT|s SAT" > $outPath
+rm $newCNF
