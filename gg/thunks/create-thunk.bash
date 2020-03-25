@@ -50,6 +50,14 @@ splitThunkHash=$( { gg-create-thunk \
 SOLVER_OUT_PREFIX="solverOut"
 for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1)))
 do
+    # GG doesn't allow you to refer to the first output of any thunk by name,
+    # so we have to special case the first output. Frickin ridiculous...
+    if [[ $i == "0" ]]
+    then
+        p=$(placeholder $splitThunkHash)
+    else
+        p=$(outputPlaceholder $splitThunkHash "$SPLIT_OUT_PREFIX.$i")
+    fi
     gg-create-thunk \
         --executable $LINGELING_HASH \
         --executable $SOLVE_HASH \
@@ -61,6 +69,6 @@ do
         $SOLVE_HASH solve.py \
         $(placeholder $LINGELING_HASH) \
         $(placeholder $CNF_HASH) \
-        $(outputPlaceholder $splitThunkHash "$SPLIT_OUT_PREFIX.$i") \
-        $SOLVER_OUT_PREFIX.$i
+        $p \
+        $SOLVER_OUT_PREFIX.$i 2>&1
 done
