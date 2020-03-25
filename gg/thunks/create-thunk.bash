@@ -37,7 +37,6 @@ splitThunkHash=$( { gg-create-thunk \
                         --executable $MARCH_HASH \
                         --executable $SPLIT_HASH \
                         $(for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1))); do echo --output "$SPLIT_OUT_PREFIX.$i"; done) \
-                        --placeholder split.thunk \
                         --value $CNF_HASH \
                         -- \
                         $SPLIT_HASH splitter.py \
