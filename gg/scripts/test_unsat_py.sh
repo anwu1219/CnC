@@ -6,7 +6,7 @@ cd test
 ../splitter.py ../../../march_cu/march_cu ../$CNF $numDivides test.cnf
 for i in $(seq 0 $((2 **  $numDivides - 1)))
 do
-    ../solve.sh ../../../iglucose/core/iglucose ../$CNF test.cnf.$i out.test.$i
+    ../solve.py ../../../iglucose/core/iglucose ../$CNF test.cnf.$i out.test.$i
 done
 ../merge.sh out.test $numDivides merge-output.test
 if [[ $(cat merge-output.test) == "UNSAT" ]]

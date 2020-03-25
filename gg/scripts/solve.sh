@@ -3,7 +3,7 @@ CNF=$2
 cubeFile=$3
 outPath=$4
 
-newCNF=$CNF.$cubeFile
+newCNF=$CNF.icnf
 echo "p inccnf" > $newCNF
 cat $CNF | grep -v c >> $newCNF
 cat $cubeFile >> $newCNF

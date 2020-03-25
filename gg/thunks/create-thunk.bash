@@ -21,23 +21,46 @@ rm -rf .gg
 
 gg-init
 
-gg-collect $SPLIT_PATH $SOLVE_PATH $MERGE_PATH $CNF_PATH $MARCH_PATH $LINGELING_PATH
+gg-collect $SPLIT_PATH $SOLVE_PATH $MERGE_PATH $CNF_PATH $MARCH_PATH $LINGELING_PATH > /dev/null
 
 function placeholder() {
     echo "@{GGHASH:$1}"
 }
 
+function outputPlaceholder(){
+    echo "@{GGHASH:$1#$2}"
+}
+
 SPLIT_OUT_PREFIX="splitOut"
 
-gg-create-thunk \
-    --executable $MARCH_HASH \
-    --executable $SPLIT_HASH \
-    $(for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1))); do echo --output "$SPLIT_OUT_PREFIX.$i"; done) \
-    --placeholder split.thunk \
-    --value $CNF_HASH \
-    -- \
-    $SPLIT_HASH splitter.py \
-    $(placeholder $MARCH_HASH) \
-    $(placeholder $CNF_HASH) \
-    $NUM_DIVIDES \
-    $SPLIT_OUT_PREFIX
+splitThunkHash=$( { gg-create-thunk \
+                        --executable $MARCH_HASH \
+                        --executable $SPLIT_HASH \
+                        $(for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1))); do echo --output "$SPLIT_OUT_PREFIX.$i"; done) \
+                        --placeholder split.thunk \
+                        --value $CNF_HASH \
+                        -- \
+                        $SPLIT_HASH splitter.py \
+                        $(placeholder $MARCH_HASH) \
+                        $(placeholder $CNF_HASH) \
+                        $NUM_DIVIDES \
+                        $SPLIT_OUT_PREFIX
+                  } 2>&1 )
+
+SOLVER_OUT_PREFIX="solverOut"
+for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1)))
+do
+    gg-create-thunk \
+        --executable $LINGELING_HASH \
+        --executable $SOLVE_HASH \
+        --output "$SOLVER_OUT_PREFIX.$i" \
+        --placeholder solve$i.thunk \
+        --value $CNF_HASH \
+        --thunk $splitThunkHash \
+        -- \
+        $SOLVE_HASH solve.py \
+        $(placeholder $LINGELING_HASH) \
+        $(placeholder $CNF_HASH) \
+        $(outputPlaceholder $splitThunkHash "$SPLIT_OUT_PREFIX.$i") \
+        $SOLVER_OUT_PREFIX.$i
+done
