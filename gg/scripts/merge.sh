@@ -1,14 +1,14 @@
-inputPrefix=$1
-numDivides=$2
-output=$3
+#!/bin/bash -e
 
-for i in $(seq 0 $((2 ** $numDivides -1)))
-do
-    UNSAT=`cat $inputPrefix.$i | grep "UNSAT" | wc |awk '{print $1}'`
-    if [[ $UNSAT == 0 ]]
-    then
-        echo "SAT" > $output
-        exit
-    fi
-done
-echo "UNSAT" > $output
+numDivides=$1
+output=$2
+
+shift 2
+
+n=$( { for f in $@; do cat $f | grep -o "UNSAT" | uniq; done } | wc -l)
+if [[ $n == $# ]]
+then
+    echo "UNSAT" > $output
+else
+    echo "SAT" > $output
+fi

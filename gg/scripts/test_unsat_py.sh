@@ -4,11 +4,12 @@ rm -rf test
 mkdir test
 cd test
 ../splitter.py ../../../march_cu/march_cu ../$CNF $numDivides test.cnf
-for i in $(seq 0 $((2 **  $numDivides - 1)))
+e=$((2 ** $numDivides - 1))
+for i in $(seq 0 $e)
 do
     ../solve.py ../../../iglucose/core/iglucose ../$CNF test.cnf.$i out.test.$i
 done
-../merge.sh out.test $numDivides merge-output.test
+../merge.py $numDivides merge-output.test $(for i in $(seq 0 $e); do echo out.test.$i; done)
 if [[ $(cat merge-output.test) == "UNSAT" ]]
 then
     echo "UNSAT, as expected"
