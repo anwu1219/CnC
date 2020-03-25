@@ -72,16 +72,13 @@ do
 done
 )
 
-echo $solverHashes
-
 gg-create-thunk \
-    --executable $MARCH_HASH \
-    --executable $SPLIT_HASH \
-    $(for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1))); do echo --output "$SPLIT_OUT_PREFIX.$i"; done) \
-    --value $CNF_HASH \
+    --executable $MERGE_HASH \
+    --output out \
+    $(for h in $solverHashes; do echo --thunk $h; done) \
+    --placeholder output.thunk \
     -- \
-    $SPLIT_HASH splitter.py \
-    $(placeholder $MARCH_HASH) \
-    $(placeholder $CNF_HASH) \
+    $MERGE_HASH merge.py \
     $NUM_DIVIDES \
-    $SPLIT_OUT_PREFIX
+    out \
+    $(for h in $solverHashes; do echo $(placeholder $h); done)
