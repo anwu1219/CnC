@@ -53,8 +53,10 @@ do
     # so we have to special case the first output. Frickin ridiculous...
     if [[ $i == "0" ]]
     then
+        h="$splitThunkHash"
         p=$(placeholder $splitThunkHash)
     else
+        h="$splitThunkHash#$SPLIT_OUT_PREFIX.$i"
         p=$(outputPlaceholder $splitThunkHash "$SPLIT_OUT_PREFIX.$i")
     fi
     gg-create-thunk \
@@ -62,7 +64,7 @@ do
         --executable $SOLVE_HASH \
         --output "$SOLVER_OUT_PREFIX.$i" \
         --value $CNF_HASH \
-        --thunk $splitThunkHash \
+        --thunk $h \
         -- \
         $SOLVE_HASH solve.py \
         $(placeholder $LINGELING_HASH) \
