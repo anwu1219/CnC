@@ -1,14 +1,19 @@
 #!/bin/bash -e
 
-USAGE="$0 <SPLIT_PATH> <SOLVE_PATH> <MERGE_PATH> <CNF_PATH> <NUM_DIVIDES> <MARCH_PATH> <LINGELING_PATH>"
+USAGE="$0 <SPLIT_PATH> <SOLVE_PATH> <MERGE_PATH> <CNF_PATH> <NUM_DIVIDES> <TIMEOUT> <TIMEOUT_FACTOR> <MARCH_PATH> <LINGELING_PATH> <CREATE_THUNK>"
 
 SPLIT_PATH=${1?$USAGE}
 SOLVE_PATH=${2?$USAGE}
 MERGE_PATH=${3?$USAGE}
 CNF_PATH=${4?$USAGE}
 NUM_DIVIDES=${5?$USAGE}
-MARCH_PATH=${6?$USAGE}
-LINGELING_PATH=${7?$USAGE}
+TIMEOUT=${6?$USAGE}
+TIMEOUT_FACTOR=${7?$USAGE}
+MARCH_PATH=${8?$USAGE}
+LINGELING_PATH=${9?$USAGE}
+CREATE_THUNK_PATH=${10?$USAGE}
+SELF_PATH=$(readlink -f $0)
+
 
 SPLIT_HASH=$(gg-hash $SPLIT_PATH)
 SOLVE_HASH=$(gg-hash $SOLVE_PATH)
@@ -16,71 +21,25 @@ MERGE_HASH=$(gg-hash $MERGE_PATH)
 CNF_HASH=$(gg-hash $CNF_PATH)
 MARCH_HASH=$(gg-hash $MARCH_PATH)
 LINGELING_HASH=$(gg-hash $LINGELING_PATH)
+GG_CREATE_THUNK_HASH=$(gg-hash $(which gg-create-thunk))
+GG_INIT_HASH=$(gg-hash $(which gg-init))
+GG_HASH_HASH=$(gg-hash $(which gg-hash))
+SELF_HASH=$(gg-hash $SELF_PATH)
 
 rm -rf .gg
 
 gg-init
 
-gg-collect $SPLIT_PATH $SOLVE_PATH $MERGE_PATH $CNF_PATH $MARCH_PATH $LINGELING_PATH > /dev/null
+gg-collect \
+    $SPLIT_PATH \
+    $SOLVE_PATH \
+    $MERGE_PATH \
+    $CNF_PATH \
+    $MARCH_PATH \
+    $LINGELING_PATH \
+    $(which gg-create-thunk) \
+    $(which gg-init) \
+    $(which gg-hash) \
+    > /dev/null
 
-function placeholder() {
-    echo "@{GGHASH:$1}"
-}
-
-function outputPlaceholder(){
-    echo "@{GGHASH:$1#$2}"
-}
-
-SPLIT_OUT_PREFIX="splitOut"
-
-splitThunkHash=$( { gg-create-thunk \
-                        --executable $MARCH_HASH \
-                        --executable $SPLIT_HASH \
-                        $(for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1))); do echo --output "$SPLIT_OUT_PREFIX.$i"; done) \
-                        --value $CNF_HASH \
-                        -- \
-                        $SPLIT_HASH splitter.py \
-                        $(placeholder $MARCH_HASH) \
-                        $(placeholder $CNF_HASH) \
-                        $NUM_DIVIDES \
-                        $SPLIT_OUT_PREFIX
-                  } 2>&1 )
-
-SOLVER_OUT_PREFIX="solverOut"
-solverHashes=$(for i in $(seq 0 $((2 ** $NUM_DIVIDES - 1)))
-do
-    # GG doesn't allow you to refer to the first output of any thunk by name,
-    # so we have to special case the first output. Frickin ridiculous...
-    if [[ $i == "0" ]]
-    then
-        h="$splitThunkHash"
-        p=$(placeholder $splitThunkHash)
-    else
-        h="$splitThunkHash#$SPLIT_OUT_PREFIX.$i"
-        p=$(outputPlaceholder $splitThunkHash "$SPLIT_OUT_PREFIX.$i")
-    fi
-    gg-create-thunk \
-        --executable $LINGELING_HASH \
-        --executable $SOLVE_HASH \
-        --output "$SOLVER_OUT_PREFIX.$i" \
-        --value $CNF_HASH \
-        --thunk $h \
-        -- \
-        $SOLVE_HASH solve.py \
-        $(placeholder $LINGELING_HASH) \
-        $(placeholder $CNF_HASH) \
-        $p \
-        $SOLVER_OUT_PREFIX.$i 2>&1
-done
-)
-
-gg-create-thunk \
-    --executable $MERGE_HASH \
-    --output out \
-    $(for h in $solverHashes; do echo --thunk $h; done) \
-    --placeholder output.thunk \
-    -- \
-    $MERGE_HASH merge.py \
-    $NUM_DIVIDES \
-    out \
-    $(for h in $solverHashes; do echo $(placeholder $h); done)
+$CREATE_THUNK_PATH $SPLIT_HASH $SOLVE_HASH $MERGE_HASH $CNF_HASH $NUM_DIVIDES $TIMEOUT $TIMEOUT_FACTOR $MARCH_HASH $LINGELING_HASH $GG_INIT_HASH $GG_HASH_HASH $GG_CREATE_THUNK_HASH
