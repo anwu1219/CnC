@@ -48,7 +48,7 @@ with open(newCNF, 'w') as out_file:
 output = subprocess.run([solverPath, f"-cpu-lim={timeout}", newCNF], check=True, stdout=subprocess.PIPE)
 output = output.stdout.decode()
 with open(outPath, 'w') as out_file:
-    if "s UNSAT" in output:
+    if "UNSAT" in output:
         out_file.write("UNSAT\n")
     elif "s INDETERMINATE" in output:
         newCNFHash = run_for_output([ggHash, newCNF]).strip()
