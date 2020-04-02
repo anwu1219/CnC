@@ -5,30 +5,46 @@ import os
 import subprocess
 import shutil
 
-solverPath, CNF, cubeFile, outPath, \
+
+if len(sys.argv[1:]) < 5:
+    solverPath, CNF, cubeFile, outPath = sys.argv[1:]
+    timeout = 1
+    timeoutFactor = 2
+else:
+    solverPath, CNF, cubeFile, outPath, \
         ggInit, ggHash, ggCreateThunk, createThunks, \
-        marchHash, numDivides, timeout, timeoutFactor \
+        marchHash, numDivides, timeout, timeoutFactor, \
         splitPyHash, solvePyHash, mergePyHash = sys.argv[1:]
 
-numDivides = int(numDivides)
-timeout = int(timeout)
-timeoutFactor = int(timeoutFactor)
+    numDivides = int(numDivides)
+    timeout = int(timeout)
+    timeoutFactor = int(timeoutFactor)
 
 def run_for_output(cmd):
     o = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
     o = o.stdout.decode()
     return o
 
-newCNF="temp.icnf"
+newCNF="temp.cnf"
 with open(newCNF, 'w') as out_file:
-    out_file.write("p inccnf\n")
-    with open(CNF, 'r') as in_file:
-        for line in in_file.readlines():
-            if line[0] != 'c':
-                out_file.write(line)
+    cubeToWrite = ""
+    numLitsinCube = 0 # Number of literals in the cube
     with open(cubeFile, 'r') as in_file:
         for line in in_file.readlines():
-            out_file.write(line)
+            print(f"Cube: {line}")
+            for lit in line.split()[1:-1]:
+                numLitsinCube += 1
+                # Adding the literal as a clause
+                cubeToWrite+=(f"{lit} 0\n")
+            break
+    with open(CNF, 'r') as in_file:
+        for line in in_file.readlines():
+            if line[0] == 'p':
+                numClause = int(line.split()[-1])
+                out_file.write(" ".join(line.split()[:-1]) + f" {numClause + numLitsinCube}\n")
+            elif line[0] != 'c':
+                out_file.write(line)
+    out_file.write(cubeToWrite)
 output = subprocess.run([solverPath, f"-cpu-lim={timeout}", newCNF], check=True, stdout=subprocess.PIPE)
 output = output.stdout.decode()
 with open(outPath, 'w') as out_file:
@@ -37,7 +53,6 @@ with open(outPath, 'w') as out_file:
     elif "s INDETERMINATE" in output:
         newCNFHash = run_for_output([ggHash, newCNF]).strip()
         solverHash = run_for_output([ggHash, solverPath]).strip()
-
         subprocess.run([ggInit], check=True)
         # Write some thunks.
         subprocess.run([
@@ -49,4 +64,4 @@ with open(outPath, 'w') as out_file:
         shutil.rmtree(".gg")
     else:
         out_file.write("SAT\n")
-os.remove(newCNF)
+#os.remove(newCNF)
