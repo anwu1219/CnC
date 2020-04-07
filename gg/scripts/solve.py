@@ -64,4 +64,4 @@ with open(outPath, 'w') as out_file:
         shutil.rmtree(".gg")
     else:
         out_file.write("SAT\n")
-#os.remove(newCNF)
+os.remove(newCNF)
