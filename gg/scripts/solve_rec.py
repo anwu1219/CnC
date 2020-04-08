@@ -7,23 +7,21 @@ import shutil
 import functools as ft
 import operator as op
 
+if __name__ == '__main__':
+    solverPath, CNF, cubeFile, \
+        ggCreateThunkPath, ggHashPath, \
+        numDivides, timeout, timeoutFactor = sys.argv[1:]
 
-
-solverPath, CNF, cubeFile, outPath, \
-    ggCreateThunkPath, ggHashPath, \
-    numDivides, timeout, timeoutFactor = sys.argv[1:]
-
-cnfHash = os.environ['cnf_hash']
-marchHash = os.environ['march_hash']
-ggCreateThunkHash = os.environ['create_thunk_hash']
-ggHashHash = os.environ['hash_hash']
-splitPyHash = os.environ['split_py_hash']
-solvePyHash = os.environ['solve_py_hash']
-mergePyHash = os.environ['merge_py_hash']
-numDivides = int(numDivides)
-timeout = int(timeout)
-timeoutFactor = int(timeoutFactor)
-
+    cnfHash = os.environ['cnf_hash']
+    marchHash = os.environ['march_hash']
+    ggCreateThunkHash = os.environ['create_thunk_hash']
+    ggHashHash = os.environ['hash_hash']
+    splitPyHash = os.environ['split_py_hash']
+    solvePyHash = os.environ['solve_py_hash']
+    mergePyHash = os.environ['merge_py_hash']
+    numDivides = int(numDivides)
+    timeout = float(timeout)
+    timeoutFactor = float(timeoutFactor)
 
 def run_for_stdout(cmd):
     return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
@@ -36,7 +34,9 @@ def gghash(path):
     args = [ggHashPath, path]
     return run_for_stdout(args)
 
-cubeHash = gghash(cubeFile)
+if __name__ == '__main__':
+    cubeHash = gghash(cubeFile)
+
 def flatten(lists):
     return ft.reduce(op.add, lists, [])
 
@@ -154,44 +154,33 @@ def appendCubeAsCnf(cnfPath, cubePath, mergedPath):
                     out_file.write(line)
         out_file.write(cubeToWrite)
 
+def createEmptyFile(filename):
+    f = open(filename, 'w')
+    f.close()
 
-newCNF="temp.cnf"
-with open(newCNF, 'w') as out_file:
-    cubeToWrite = ""
-    numLitsinCube = 0 # Number of literals in the cube
-    with open(cubeFile, 'r') as in_file:
-        for line in in_file.readlines():
-            print(f"Cube: {line}")
-            for lit in line.split()[1:-1]:
-                numLitsinCube += 1
-                # Adding the literal as a clause
-                cubeToWrite+=(f"{lit} 0\n")
-            break
-    with open(CNF, 'r') as in_file:
-        for line in in_file.readlines():
-            if line[0] == 'p':
-                numClause = int(line.split()[-1])
-                out_file.write(" ".join(line.split()[:-1]) + f" {numClause + numLitsinCube}\n")
-            elif line[0] != 'c':
-                out_file.write(line)
-    out_file.write(cubeToWrite)
-output = sub.run([solverPath, f"-cpu-lim={timeout}", newCNF], check=True, stdout=sub.PIPE)
-output = output.stdout.decode()
-with open(outPath, 'w') as out_file:
-    if "UNSAT" in output:
-        out_file.write("UNSAT\n")
-    elif "s INDETERMINATE" in output:
-        newCNFHash = run_for_output([ggHash, newCNF]).strip()
-        solverHash = run_for_output([ggHash, solverPath]).strip()
-        sub.run([ggInit], check=True)
-        # Write some thunks.
-        sub.run([
-                createThunks,
-                spli
+def createEmptyThunkFiles(splitThunkName, subThunkName):
+    createEmptyFile(splitThunkName)
+    for i in range(2 ** numDivides):
+        createEmptyFile(f"{subThunkName}{i}")
 
-            ], check=True)
-        # See output.thunk for the created thunk.
-        shutil.rmtree(".gg")
-    else:
-        out_file.write("SAT\n")
-os.remove(newCNF)
+if __name__ == '__main__':
+    mergedCNF = CNF + ".merged"
+    appendCube(CNF, cubeFile, mergedCNF)
+    args = [solverPath, f"-cpu-lim={timeout}", mergedCNF]
+    output = runForStdout(args)
+    with open('out', 'w') as out_file:
+        if "UNSAT" in output:
+            out_file.write("UNSAT\n")
+            createEmptyThunkFiles('split', 'sub')
+        elif "s INDETERMINATE" in output:
+            splitThunkHash = write_split_thunk('split', numDivides)
+            solveThunks = []
+            for i in range(2 ** numDivides):
+                cubeHash = splitThunkHash if i == 0 else splitThunkHash + f"#cube{i}"
+                solveThunks.append(write_solve_thunk(f"sub{i}", cubeHash, numDivides,
+                                                     timeout * timeoutFactor, timeoutFactor))
+            write_merge_thunk('out', solveThunks)
+        else:
+            out_file.write("SAT\n")
+            createEmptyThunkFiles('split', 'sub')
+    os.remove(mergedCNF)
