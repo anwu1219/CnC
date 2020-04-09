@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -6,181 +6,253 @@ import subprocess as sub
 import shutil
 import functools as ft
 import operator as op
+from typing import List, TypeVar, NamedTuple, Optional
+from pathlib import Path
 
-if __name__ == '__main__':
-    solverPath, CNF, cubeFile, \
-        ggCreateThunkPath, ggHashPath, \
-        numDivides, timeout, timeoutFactor = sys.argv[1:]
 
-    cnfHash = os.environ['cnf_hash']
-    marchHash = os.environ['march_hash']
-    ggCreateThunkHash = os.environ['create_thunk_hash']
-    ggHashHash = os.environ['hash_hash']
-    splitPyHash = os.environ['split_py_hash']
-    solvePyHash = os.environ['solve_py_hash']
-    mergePyHash = os.environ['merge_py_hash']
-    numDivides = int(numDivides)
-    timeout = float(timeout)
-    timeoutFactor = float(timeoutFactor)
+class ExecHashes(NamedTuple):
+    """ A collection of executable hashes
+    """
 
-def run_for_stdout(cmd):
+    march_hash: str
+    solver_hash: str
+    solve_py_hash: str
+    merge_py_hash: str
+    split_py_hash: str
+    gg_create_thunk_hash: str
+    gg_hash_hash: str
+
+    @classmethod
+    def from_env(cls) -> "ExecHashes":
+        return cls(
+            march_hash=os.environ["march_hash"],
+            solver_hash=os.environ["solver_hash"],
+            solve_py_hash=os.environ["solve_py_hash"],
+            merge_py_hash=os.environ["merge_py_hash"],
+            split_py_hash=os.environ["split_py_hash"],
+            gg_create_thunk_hash=os.environ["gg_create_thunk_hash"],
+            gg_hash_hash=os.environ["gg_hash_hash"],
+        )
+
+    def as_gg_arglist(self) -> List[str]:
+        return [
+            "--envar",
+            "march_hash=%s" % self.march_hash,
+            "--envar",
+            "solver_hash=%s" % self.solver_hash,
+            "--envar",
+            "gg_create_thunk_hash=%s" % self.gg_create_thunk_hash,
+            "--envar",
+            "gg_hash_hash=%s" % self.gg_hash_hash,
+            "--envar",
+            "split_py_hash=%s" % self.split_py_hash,
+            "--envar",
+            "solve_py_hash=%s" % self.solve_py_hash,
+            "--envar",
+            "merge_py_hash=%s" % self.merge_py_hash,
+        ]
+
+
+def run_for_stdout(cmd: List[str]) -> str:
     return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
 
-def run_for_stderr(cmd):
-    return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
 
-def gghash(path):
-    ''' Given a path, returns the hash of the referenced file '''
-    args = [ggHashPath, path]
-    return run_for_stdout(args)
+def run_for_stderr(cmd: List[str]) -> str:
+    return sub.run(cmd, check=True, stderr=sub.PIPE).stderr.decode()
 
-if __name__ == '__main__':
-    cubeHash = gghash(cubeFile)
 
-def flatten(lists):
+def run_create_thunk(
+    gg_create_thunk_path: str, ehashes: ExecHashes, args: List[str]
+) -> str:
+    args = [gg_create_thunk_path] + ehashes.as_gg_arglist() + args
+    print(args)
+    r = run_for_stderr(args).strip()
+    print(r)
+    return r
+
+
+T = TypeVar("T")
+
+
+def flatten(lists: List[List[T]]) -> List[T]:
     return ft.reduce(op.add, lists, [])
 
-def envars():
-    return [
-        '--envar', 'march_hash=%s' % marchHash,
-        '--envar', 'create_thunk_hash=%s' % ggCreateThunkHash,
-        '--envar', 'hash_hash=%s' % ggHashHash,
-        '--envar', 'split_py_hash=%s' % splitPyHash,
-        '--envar', 'solve_py_hash=%s' % solvePyHash,
-        '--envar', 'merge_py_hash=%s' % mergePyHash,
-    ]
 
-def placeholder(t):
-    return '@{GGHASH:%s}' % t
+def placeholder(t: str) -> str:
+    return "@{GGHASH:%s}" % t
 
-def write_split_thunk(path, numDivides):
-    splitOutPrefix = 'cube'
-    args = [ggCreateThunkPath] +\
-        flatten([ ['--output', splitOutPrefix + '.' + str(i)] for i in range(2 ** numDivides) ]) +\
-        envars() +\
-        [
-            '--executable', marchHash,
-            '--executable', splitPyHash,
-            '--output-path', path,
-            '--value', cnfHash,
-            '--value', cubeHash,
-            '--',
-            splitPyHash,
-            'split.py',
-            placeholder(marchHash),
-            placeholder(cnfHash),
-            numDivides,
-            splitOutPrefix,
-        ]
-    return run_for_stderr(args)
 
-def write_solve_thunk(path, subCubeHash, numDivides, timeout, timeoutFactor):
-    args = [ggCreateThunkPath,
-            '--output', 'out',
-            '--output', 'split'] +\
-        flatten([ ['--output',  'sub%s' % str(i)] for i in range(2 ** numDivides) ]) +\
-        envars() +\
-        [
-            '--executable', solverHash,
-            '--executable', solvePyHash,
-            '--output-path', path,
-            '--value', cnfHash,
-            '--value', subCubeHash,
-            '--',
-            solvePyHash,
-            'solve_rec.py',
-            placeholder(solverHash),
-            placeholder(cnfHash),
-            placeholder(subCubeHash),
-            solveOutPrefix,
-            placeholder(ggCreateThunkHash),
-            placeholder(ggHashHash),
-            str(numDivides),
+def write_split_thunk(
+    gg_create_thunk_path: str,
+    path: str,
+    cnf_hash: str,
+    cube_hash: str,
+    ehashes: ExecHashes,
+    num_divides: int,
+) -> str:
+    return run_create_thunk(
+        gg_create_thunk_path,
+        ehashes,
+        flatten([["--output", f"cube{i}"] for i in range(2 ** num_divides)])
+        + [
+            "--executable",
+            ehashes.march_hash,
+            "--executable",
+            ehashes.split_py_hash,
+            "--output-path",
+            path,
+            "--value",
+            cnf_hash,
+            "--value",
+            cube_hash,
+            "--",
+            ehashes.split_py_hash,
+            "splitter.py",
+            placeholder(ehashes.march_hash),
+            placeholder(cnf_hash),
+            placeholder(cube_hash),
+            str(num_divides),
+        ],
+    )
+
+
+def write_solve_thunk(
+    gg_create_thunk_path: str,
+    path: Optional[str],
+    ehashes: ExecHashes,
+    cnf_hash: str,
+    cube_hash: str,
+    num_divides: int,
+    timeout: float,
+    timeout_factor: float,
+    placeholder_: Optional[str] = None,
+) -> str:
+    return run_create_thunk(
+        gg_create_thunk_path,
+        ehashes,
+        ["--output", "out", "--output", "split"]
+        + flatten([["--output", f"sub{i}"] for i in range(2 ** num_divides)])
+        + ["--executable", ehashes.solver_hash, "--executable", ehashes.solve_py_hash,]
+        + ([] if path is None else ["--output-path", path])
+        + ([] if placeholder_ is None else ["--placeholder", placeholder_])
+        + [
+            "--value",
+            cnf_hash,
+            "--value" if cube_hash[0] == 'V' else '--thunk',
+            cube_hash,
+            "--",
+            ehashes.solve_py_hash,
+            "solve_rec.py",
+            placeholder(ehashes.solver_hash),
+            placeholder(cnf_hash),
+            placeholder(cube_hash),
+            placeholder(ehashes.gg_create_thunk_hash),
+            placeholder(ehashes.gg_hash_hash),
+            str(num_divides),
             str(timeout),
-            str(timeoutFactor),
+            str(timeout_factor),
+        ],
+    )
+
+
+def write_merge_thunk(
+    gg_create_thunk_path: str,
+    path: str,
+    ehashes: ExecHashes,
+    num_divides: int,
+    sub_thunk_hahes: List[str],
+) -> str:
+    return run_create_thunk(
+        gg_create_thunk_path,
+        ehashes,
+        [
+            "--output",
+            "out",
+            "--executable",
+            ehashes.merge_py_hash,
+            "--output-path",
+            path,
         ]
-    return run_for_stderr(args)
+        + flatten([["--thunk", s] for s in sub_thunk_hahes])
+        + ["--", ehashes.merge_py_hash, "merge.py", str(num_divides)]
+        + [placeholder(s) for s in sub_thunk_hahes],
+    )
 
 
-def write_merge_thunk(path, subProblemThunkHashes):
-    args = [ggCreateThunkPath,
-            '--output', 'out',
-        ] +\
-        envars() +\
-        [
-            '--executable', mergePyHash,
-            '--output-path', path,
-        ] +\
-        flatten([['--thunk', s] for s in subProblemThunkHashes]) +\
-        [
-            '--',
-            mergePyHash,
-            'merge.py',
-        ] +\
-        [placeholder(s) for s in subProblemThunkHashes]
-    return run_for_stderr(args)
-
-def appendCube(cnfPath, cubePath, mergedPath):
-    ''' Glues a CNF file and a cube file, creating an ICNF file '''
-    with open(mergedPath, 'w') as o:
-        o.write('p inccnf\n')
-        with open(cnfPath, 'w') as i:
+def append_cube(cnf_path, cube_path, merged_path):
+    """ Glues a CNF file and a cube file, creating an ICNF file """
+    with open(merged_path, "w") as o:
+        o.write("p inccnf\n")
+        with open(cnf_path, "r") as i:
             for l in i.readlines():
                 o.write(l)
-        with open(cubePath, 'w') as i:
+        with open(cube_path, "r") as i:
             for l in i.readlines():
                 o.write(l)
 
-def appendCubeAsCnf(cnfPath, cubePath, mergedPath):
-    ''' Glues a CNF file and a cube file, creating a CNF file
-    Assumes a single cube line.
-    '''
-    with open(mergedPath, 'w') as out_file:
-        cubeToWrite = ""
-        numLitsinCube = 0 # Number of literals in the cube
-        with open(cubePath, 'r') as in_file:
-            line = in_file.readlines()[0]
-            print(f"Cube: {line}")
-            for lit in line.split()[1:-1]:
-                numLitsinCube += 1
-                # Adding the literal as a clause
-                cubeToWrite+=(f"{lit} 0\n")
-        with open(cnfPath, 'r') as in_file:
-            for line in in_file.readlines():
-                if line[0] == 'p':
-                    numClause = int(line.split()[-1])
-                    out_file.write(" ".join(line.split()[:-1]) + f" {numClause + numLitsinCube}\n")
-                elif line[0] != 'c':
-                    out_file.write(line)
-        out_file.write(cubeToWrite)
 
-def createEmptyFile(filename):
-    f = open(filename, 'w')
-    f.close()
+def touch_output_files(num_divides: int):
+    Path("out").touch()
+    Path("split").touch()
+    for i in range(2 ** num_divides):
+        Path(f"sub{i}").touch()
 
-def createEmptyThunkFiles(splitThunkName, subThunkName):
-    createEmptyFile(splitThunkName)
-    for i in range(2 ** numDivides):
-        createEmptyFile(f"{subThunkName}{i}")
 
-if __name__ == '__main__':
-    mergedCNF = CNF + ".merged"
-    appendCube(CNF, cubeFile, mergedCNF)
-    args = [solverPath, f"-cpu-lim={timeout}", mergedCNF]
-    output = runForStdout(args)
-    with open('out', 'w') as out_file:
-        if "UNSAT" in output:
+def main():
+    (
+        solver_path,
+        cnf_path,
+        cube_path,
+        gg_create_thunk_path,
+        gg_hash_path,
+        num_divides,
+        timeout,
+        timeout_factor,
+    ) = sys.argv[1:]
+
+    ehashes = ExecHashes.from_env()
+    num_divides = int(num_divides)
+    timeout = float(timeout)
+    timeout_factor = float(timeout_factor)
+
+    cube_hash = run_for_stdout([gg_hash_path, cube_path]).strip()
+    cnf_hash = run_for_stdout([gg_hash_path, cnf_path]).strip()
+
+    icnf_path = f"icnf"
+    append_cube(cnf_path, cube_path, icnf_path)
+    print("Starting solver")
+    output = run_for_stdout([solver_path, f"-cpu-lim={timeout}", icnf_path])
+    os.remove(icnf_path)
+    if "UNSAT" in output:
+        touch_output_files(num_divides)
+        with open("out", "w") as out_file:
             out_file.write("UNSAT\n")
-            createEmptyThunkFiles('split', 'sub')
-        elif "s INDETERMINATE" in output:
-            splitThunkHash = write_split_thunk('split', numDivides)
-            solveThunks = []
-            for i in range(2 ** numDivides):
-                cubeHash = splitThunkHash if i == 0 else splitThunkHash + f"#cube{i}"
-                solveThunks.append(write_solve_thunk(f"sub{i}", cubeHash, numDivides,
-                                                     timeout * timeoutFactor, timeoutFactor))
-            write_merge_thunk('out', solveThunks)
-        else:
+    elif "s INDETERMINATE" in output:
+        print("Timed out. Splitting")
+        split_hash = write_split_thunk(
+            gg_create_thunk_path, "split", cnf_hash, cube_hash, ehashes, num_divides
+        )
+        cube_thunks = []
+        for i in range(2 ** num_divides):
+            sub_cube_hash = split_hash + ("" if i == 0 else f"#cube{i}")
+            cube_thunks.append(
+                write_solve_thunk(
+                    gg_create_thunk_path,
+                    f"sub{i}",
+                    ehashes,
+                    cnf_hash,
+                    sub_cube_hash,
+                    num_divides,
+                    timeout * timeout_factor,
+                    timeout_factor,
+                )
+            )
+        write_merge_thunk(gg_create_thunk_path, "out", ehashes, num_divides, cube_thunks)
+    else:
+        touch_output_files(num_divides)
+        with open("out", "w") as out_file:
             out_file.write("SAT\n")
-            createEmptyThunkFiles('split', 'sub')
-    os.remove(mergedCNF)
+
+
+if __name__ == "__main__":
+    main()
