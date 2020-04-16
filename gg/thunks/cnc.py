@@ -40,7 +40,6 @@ def appendCubeAsCnf(cnfPath, cubePath, mergedPath):
         numLitsinCube = 0 # Number of literals in the cube
         with open(cubePath, 'r') as in_file:
             line = in_file.readlines()[0]
-            print(f"Cube: {line}")
             for lit in line.split()[1:-1]:
                 numLitsinCube += 1
                 # Adding the literal as a clause
@@ -62,7 +61,6 @@ def split_outputs(gg : pygg.GG, cnf : pygg.Value, n : int)->List[str]:
 
 @pygg.thunk_fn(outputs=split_outputs)
 def split(gg: pygg.GG, cnf : pygg.Value, n : int) -> pygg.MultiOutput:
-    print(cnf.path())
     sub.check_call([gg.bin(march_path).path(), cnf.path(),
                     "-o", out_prefix, "-l", str(2 ** n)])
     outputs = {}
@@ -96,6 +94,7 @@ def solve_(gg : pygg.GG, cnf : pygg.Value, cube : pygg.Value, n : int,
     args = [gg.bin(solver_path).path(), merged_cnf, f"-cpu-lim={timeout}", ]
     output = run_for_stdout(args)
     if "UNSAT" in output:
+        os.remove(merged_cnf)
         return gg.str_value("UNSAT\n")
     elif "s INDETERMINATE" in output:
         merged_cnf_val = gg.file_value(merged_cnf)
@@ -106,6 +105,7 @@ def solve_(gg : pygg.GG, cnf : pygg.Value, cube : pygg.Value, n : int,
                                                   n, timeout * timeout_factor, timeout_factor]) )
         return functools.reduce(lambda x, y : gg.thunk(merge, [x, y]), solve_thunk)
     else:
+        os.remove(merged_cnf)
         return gg.str_value("SAT\n")
 
 @pygg.thunk_fn()
