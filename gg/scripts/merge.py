@@ -1,14 +1,14 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 import sys
 import subprocess
 import os
 
-numDivides, output = sys.argv[1:3]
+numDivides = sys.argv[1]
 numDivides = int(numDivides)
 
-files = sys.argv[3:]
+files = sys.argv[2:]
 
-with open(output, "w") as fout:
+with open("out", "w") as fout:
     for f in files:
         with open(f, "r") as fin:
             if "UNSAT" not in fin.read():
