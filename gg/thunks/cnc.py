@@ -7,7 +7,7 @@ import os
 import functools
 import subprocess as sub
 import tempfile
-from typing import List
+from typing import List, Optional
 
 gg = pygg.init()
 
@@ -74,15 +74,21 @@ def split(cnf: pygg.Value, n: int) -> pygg.OutputDict:
 
 @gg.thunk_fn()
 def solve(
-        cnf: pygg.Value, initial_divides: int, n: int, timeout: float, timeout_factor: float
+    cnf: pygg.Value, initial_divides: int, n: int, timeout: float, timeout_factor: float
 ) -> pygg.Output:
-    return gg.thunk(solve_, cnf, gg.str_value("a 0"), initial_divides,
-                    n, timeout, timeout_factor)
+    return gg.thunk(
+        solve_, cnf, gg.str_value("a 0"), initial_divides, n, timeout, timeout_factor
+    )
+
 
 @gg.thunk_fn()
 def solve_(
-        cnf: pygg.Value, cube: pygg.Value, initial_divides : int,
-        n: int, timeout: float, timeout_factor: float
+    cnf: pygg.Value,
+    cube: pygg.Value,
+    initial_divides: int,
+    n: int,
+    timeout: float,
+    timeout_factor: float,
 ) -> pygg.Output:
     # Empty cube as a placeholder
     if cube.as_str() == "":
@@ -125,14 +131,21 @@ def solve_(
         os.remove(merged_cnf)
         return gg.str_value("SAT\n")
 
+
 @gg.thunk_fn()
-def merge(r1: pygg.Value, r2: pygg.Value) -> pygg.Output:
-    r1_str = r1.as_str()
-    r2_str = r2.as_str()
-    if r1_str == "UNSAT\n" and r2_str == "UNSAT\n":
-        return gg.str_value("UNSAT\n")
+def merge(r1: Optional[pygg.Value], r2: Optional[pygg.Value]) -> pygg.Output:
+    if r2 is not None and r2.as_str() == "SAT\n":
+        # r2 is SAT, return SAT
+        return r2
+    elif r1 is not None and r1.as_str() == "SAT\n":
+        # see aboce
+        return r1
+    elif r1 is None or r2 is None:
+        # Something is unresolved, and not SATs yet...
+        return gg.this()
     else:
-        return gg.str_value("SAT\n")
+        # All is resolved, no SATs
+        return r1
 
 
 gg.main()
