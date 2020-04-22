@@ -74,18 +74,15 @@ def split(cnf: pygg.Value, n: int) -> pygg.OutputDict:
 
 @gg.thunk_fn()
 def solve(
-    cnf: pygg.Value, n: int, timeout: float, timeout_factor: float
+        cnf: pygg.Value, initial_divides: int, n: int, timeout: float, timeout_factor: float
 ) -> pygg.Output:
-    return gg.thunk(solve_, cnf, gg.str_value("a 0"), n, timeout, timeout_factor)
+    return gg.thunk(solve_, cnf, gg.str_value("a 0"), initial_divides,
+                    n, timeout, timeout_factor)
 
-def solve_n_anonymous(
-    cnf: pygg.Value, cube: pygg.Value, n: int, timeout: float, timeout_factor: float
-) -> int:
-    return 2 * n ** 2 + 3
-
-@gg.thunk_fn(n_anonymous = solve_n_anonymous)
+@gg.thunk_fn()
 def solve_(
-    cnf: pygg.Value, cube: pygg.Value, n: int, timeout: float, timeout_factor: float
+        cnf: pygg.Value, cube: pygg.Value, initial_divides : int,
+        n: int, timeout: float, timeout_factor: float
 ) -> pygg.Output:
     # Empty cube as a placeholder
     if cube.as_str() == "":
@@ -93,16 +90,21 @@ def solve_(
 
     merged_cnf = "merge"
     appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
-    args = [
-        gg.bin(solver_path).path(),
-        merged_cnf,
-        f"-cpu-lim={timeout}",
-    ]
-    output = run_for_stdout(args)
+
+    output = "s INDETERMINATE"
+    if initial_divides == 0:
+        args = [
+            gg.bin(solver_path).path(),
+            merged_cnf,
+            f"-cpu-lim={timeout}",
+        ]
+        output = run_for_stdout(args)
     if "UNSAT" in output:
         os.remove(merged_cnf)
         return gg.str_value("UNSAT\n")
     elif "s INDETERMINATE" in output:
+        if initial_divides != 0:
+            n = initial_divides
         merged_cnf_val = gg.file_value(merged_cnf)
         sub_queries = gg.thunk(split, merged_cnf_val, n)
         solve_thunk = []
@@ -112,6 +114,7 @@ def solve_(
                     solve_,
                     merged_cnf_val,
                     sub_queries[f"{out_prefix}{i}"],
+                    0,
                     n,
                     timeout * timeout_factor,
                     timeout_factor,
@@ -121,7 +124,6 @@ def solve_(
     else:
         os.remove(merged_cnf)
         return gg.str_value("SAT\n")
-
 
 @gg.thunk_fn()
 def merge(r1: pygg.Value, r2: pygg.Value) -> pygg.Output:
