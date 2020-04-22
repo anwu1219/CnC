@@ -7,6 +7,7 @@ import os
 import functools
 import subprocess as sub
 import tempfile
+import itertools as it
 from typing import List, Optional
 
 gg = pygg.init()
@@ -45,30 +46,39 @@ def appendCubeAsCnf(cnfPath: str, cubePath: str, mergedPath: str) -> None:
         out_file.write(cubeToWrite)
 
 
+def cubeExtend(pathA: str, lineB: str, outputPath: str) -> None:
+    with open(pathA, "r") as a:
+        with open(outputPath, "w") as f:
+            a_lits = a.read().strip().split()[1:-1]
+            b_lits = lineB.strip().split()[1:-1]
+            f.write(f"a {' '.join(it.chain(a_lits, b_lits))} 0\n")
+
+
 def run_for_stdout(cmd: List[str]) -> str:
     return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
 
 
-def split_outputs(cnf: pygg.Value, n: int) -> List[str]:
+def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int) -> List[str]:
     return [f"{out_prefix}{i}" for i in range(2 ** n)]
 
 
 @gg.thunk_fn(outputs=split_outputs)
-def split(cnf: pygg.Value, n: int) -> pygg.OutputDict:
+def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
+    appendCubeAsCnf(cnf.path(), cube.path(), "cnf")
     sub.check_call(
-        [gg.bin(march_path).path(), cnf.path(), "-o", out_prefix, "-l", str(2 ** n)]
+        [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-l", str(2 ** n)]
     )
     outputs = {}
     with open(out_prefix, "r") as f:
         for i, l in enumerate(f.readlines()):
-            with open(f"{out_prefix}.{i}", "w") as fout:
-                fout.write(l)
+            cubeExtend(cube.path(), l, f"{out_prefix}.{i}")
             outputs[f"{out_prefix}{i}"] = gg.file_value(f"{out_prefix}.{i}")
     for j in range(2 ** n)[i:]:
         f = open(f"{out_prefix}.{j}", "w")
         f.close()
         outputs[f"{out_prefix}{j}"] = gg.file_value(f"{out_prefix}.{j}")
     os.remove(out_prefix)
+    os.remove("cnf")
     return outputs
 
 
@@ -94,31 +104,29 @@ def solve_(
     if cube.as_str() == "":
         return gg.str_value("UNSAT\n")
 
-    merged_cnf = "merge"
-    appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
-
     output = "s INDETERMINATE"
     if initial_divides == 0:
+        merged_cnf = "merge"
+        appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
         args = [
             gg.bin(solver_path).path(),
             merged_cnf,
             f"-cpu-lim={timeout}",
         ]
         output = run_for_stdout(args)
-    if "UNSAT" in output:
         os.remove(merged_cnf)
+    if "UNSAT" in output:
         return gg.str_value("UNSAT\n")
     elif "s INDETERMINATE" in output:
         if initial_divides != 0:
             n = initial_divides
-        merged_cnf_val = gg.file_value(merged_cnf)
-        sub_queries = gg.thunk(split, merged_cnf_val, n)
+        sub_queries = gg.thunk(split, cnf, cube, n)
         solve_thunk = []
         for i in range(2 ** n):
             solve_thunk.append(
                 gg.thunk(
                     solve_,
-                    merged_cnf_val,
+                    cnf,
                     sub_queries[f"{out_prefix}{i}"],
                     0,
                     n,
@@ -128,7 +136,6 @@ def solve_(
             )
         return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
     else:
-        os.remove(merged_cnf)
         return gg.str_value("SAT\n")
 
 
