@@ -20,7 +20,7 @@ gg.install(march_path)
 out_prefix = "cube"
 
 
-def appendCubeAsCnf(cnfPath, cubePath, mergedPath):
+def appendCubeAsCnf(cnfPath: str, cubePath: str, mergedPath: str) -> None:
     """ Glues a CNF file and a cube file, creating a CNF file
     Assumes a single cube line.
     """
@@ -45,7 +45,7 @@ def appendCubeAsCnf(cnfPath, cubePath, mergedPath):
         out_file.write(cubeToWrite)
 
 
-def run_for_stdout(cmd):
+def run_for_stdout(cmd: List[str]) -> str:
     return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
 
 

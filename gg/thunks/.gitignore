@@ -1,3 +1,4 @@
 .gg
 *.thunk
 temp
+.mypy_cache
