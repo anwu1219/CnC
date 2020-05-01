@@ -10,6 +10,9 @@ import tempfile
 import itertools as it
 from typing import List, Optional
 
+import sys
+sys.setrecursionlimit(5000)
+
 gg = pygg.init()
 
 solver_path = "../../iglucose/core/iglucose"
@@ -19,7 +22,6 @@ gg.install(solver_path)
 gg.install(march_path)
 
 out_prefix = "cube"
-
 
 def appendCubeAsCnf(cnfPath: str, cubePath: str, mergedPath: str) -> None:
     """ Glues a CNF file and a cube file, creating a CNF file
@@ -84,12 +86,12 @@ def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
 
 @gg.thunk_fn()
 def solve(
-    cnf: pygg.Value, initial_divides: int, n: int, timeout: float, timeout_factor: float
+        cnf: pygg.Value, initial_divides: int, n: int, timeout: float, timeout_factor: float,
+        fut : int
 ) -> pygg.Output:
     return gg.thunk(
-        solve_, cnf, gg.str_value("a 0"), initial_divides, n, timeout, timeout_factor
+        solve_, cnf, gg.str_value("a 0"), initial_divides, n, timeout, timeout_factor, fut
     )
-
 
 @gg.thunk_fn()
 def solve_(
@@ -99,6 +101,7 @@ def solve_(
     n: int,
     timeout: float,
     timeout_factor: float,
+    fut : int
 ) -> pygg.Output:
     # Empty cube as a placeholder
     if cube.as_str() == "":
@@ -132,12 +135,15 @@ def solve_(
                     n,
                     timeout * timeout_factor,
                     timeout_factor,
+                    fut
                 )
             )
-        return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
+        if fut != 0:
+            return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
+        else:
+            return functools.reduce(lambda x, y: gg.thunk(merge_no_fut, x, y), solve_thunk)
     else:
-        return gg.str_value("SAT\n")
-
+        return gg.str_value("UNKNOWN\n")
 
 @gg.thunk_fn()
 def merge(r1: Optional[pygg.Value], r2: Optional[pygg.Value]) -> pygg.Output:
@@ -154,5 +160,13 @@ def merge(r1: Optional[pygg.Value], r2: Optional[pygg.Value]) -> pygg.Output:
         # All is resolved, no SATs
         return r1
 
+@gg.thunk_fn()
+def merge_no_fut(r1: pygg.Value, r2: pygg.Value) -> pygg.Output:
+    r1_str = r1.as_str()
+    r2_str = r2.as_str()
+    if r1_str == "UNSAT\n" and r2_str == "UNSAT\n":
+        return gg.str_value("UNSAT\n")
+    else:
+        return gg.str_value("UNKNOWN\n")
 
 gg.main()
