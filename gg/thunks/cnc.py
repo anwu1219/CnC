@@ -66,7 +66,7 @@ def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int) -> List[str]:
 def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
     appendCubeAsCnf(cnf.path(), cube.path(), "cnf")
     sub.check_call(
-        [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-l", str(2 ** n)]
+        [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-d", str(n)]
     )
     outputs = {}
     with open(out_prefix, "r") as f:
