@@ -121,11 +121,10 @@ def solve_(
     if "UNSAT" in output:
         return gg.str_value("UNSAT\n")
     elif "s INDETERMINATE" in output:
-        if initial_divides != 0:
-            n = initial_divides
-        sub_queries = gg.thunk(split, cnf, cube, n)
+        divides = n if initial_divides == 0 else initial_divides
+        sub_queries = gg.thunk(split, cnf, cube, divides)
         solve_thunk = []
-        for i in range(2 ** n):
+        for i in range(2 ** divides):
             solve_thunk.append(
                 gg.thunk(
                     solve_,
