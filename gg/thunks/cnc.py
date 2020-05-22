@@ -15,8 +15,8 @@ sys.setrecursionlimit(5000)
 
 gg = pygg.init()
 
-solver_path = "../../iglucose/core/iglucose"
-march_path = "../../march_cu/march_cu"
+solver_path = "iglucose_static"
+march_path = "march_cu"
 
 gg.install(solver_path)
 gg.install(march_path)
