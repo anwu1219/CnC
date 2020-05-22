@@ -9,8 +9,11 @@ UN7ZIP="p7zip -d"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[[0]]}" )" >/dev/null 2>&1 && pwd )"
 
 DOWNLOADS_DIR="$SCRIPT_DIR/downloads"
+mkdir -p $DOWNLOADS_DIR
 BENCHMARKS_DIR="$SCRIPT_DIR/benchmarks"
+mkdir -p $BENCHMARKS_DIR
 FAMILIES_DIR="$SCRIPT_DIR/families"
+mkdir -p $FAMILIES_DIR
 
 SAT09_URL="http://www.cril.univ-artois.fr/SAT09/bench/appli.7z"
 SAT18_URL="http://sat2018.forsyte.tuwien.ac.at/benchmarks/Main.zip"
