@@ -51,7 +51,7 @@ do
         bench_to="$family_dir/$bench"
         if [[ ! -a $bench_to ]]
         then
-            bench_from=$(find $DOWNLOADS_DIR -name $bench) | head -n 1 | grep -E '.*' || (echo Missing: $bench in $family; exit 1)
+            bench_from=$(find $DOWNLOADS_DIR -name '*'$bench'*' | head -n 1 | grep -E '.*' || (echo Missing: $bench in $family; exit 1))
             cp $bench_from $bench_to
         fi
     done
