@@ -1,10 +1,13 @@
-CNF=$1
-PAR=4
-DIR=~/CnC/
+#!/usr/bin/env bash
+set -e
+USAGE="$0 CNF JOBS"
+CNF=${1?$USAGE}
+PAR=${2?$USAGE}
 OUT=/tmp
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-rm $OUT/output*.txt
-$DIR/march_cu/march_cu $CNF -o $OUT/cubes$$ $2 $3 $4 $5 $6 $7 $8 $9
+rm -f $OUT/output*.txt
+$DIR/march_cu/march_cu $CNF -o $OUT/cubes$$ $3 $4 $5 $6 $7 $8 $9
 
 FLAG=1
 while [[ $FLAG == "1" ]]
