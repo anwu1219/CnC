@@ -14,6 +14,8 @@ BENCHMARKS_DIR="$SCRIPT_DIR/benchmarks"
 mkdir -p $BENCHMARKS_DIR
 FAMILIES_DIR="$SCRIPT_DIR/families"
 mkdir -p $FAMILIES_DIR
+TEST_BENCHMARK="$SCRIPT_DIR/../tests/random_ksat.dimacs"
+TEST_BENCHMARK_TO="$DOWNLOADS_DIR/random_ksat.dimacs"
 
 SAT09_URL="http://www.cril.univ-artois.fr/SAT09/bench/appli.7z"
 SAT18_URL="http://sat2018.forsyte.tuwien.ac.at/benchmarks/Main.zip"
@@ -44,7 +46,12 @@ then
     (cd $DOWNLOADS_DIR && $UNZIP $SAT18_ZIP)
 fi
 
-for family in $(ls $FAMILIES_DIR)
+if [[ ! -a $TEST_BENCHMARK_TO ]]
+then
+    cp $TEST_BENCHMARK $TEST_BENCHMARK_TO
+fi
+
+for family in $(ls $FAMILIES_DIR | grep -v "~")
 do
     family_dir="$BENCHMARKS_DIR/$family"
     family_list="$FAMILIES_DIR/$family"
