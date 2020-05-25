@@ -15,7 +15,7 @@ Options:
   --timeout N           How long to try for (s) [default: 3600]
   --initial-timeout N   How long to try for (s) before splitting [default: 5]
   --timeout-factor N    How long to multiply the initial_timeout by each split [default: 1.5]
-  --infra I             gg-local, gg-lambda [default: gg-local]
+  --infra I             gg-local, gg-lambda, cnc-lingeling [default: gg-local]
   --trial N             the trial number to run [default: 0]
   -h --help             Show this screen.
 """
@@ -26,15 +26,19 @@ from docopt import docopt
 from glob import glob
 from typing import Any, List, NamedTuple
 from os import environ
-from os.path import exists, abspath, dirname, join, basename
+from os.path import exists, abspath, dirname, join, basename, split
 from pprint import pprint
 from re import match
+import re
 import shutil
 import subprocess as sub
 from time import time
 
 SCRIPT_DIR = abspath(dirname(abspath(__file__)))
 BENCHMARKS_DIR = f"{SCRIPT_DIR}/benchmarks"
+REPO_DIR = split(SCRIPT_DIR)[0]
+SAT_RE = re.compile("s SATISFIABLE")
+UNSAT_RE = re.compile("s UNSATISFIABLE")
 
 
 def which(s: str) -> str:
@@ -47,6 +51,7 @@ MARCH_DIR_PATH = abspath("../march_cu")
 GLUC_PATH = abspath("../iglucose/core/")
 CNC_PATH = abspath("./thunks/cnc.py")
 FORCE_PATH = which("gg-force")
+CNC_LINGELING_PATH = join(REPO_DIR, "cube-lingeling.sh")
 
 environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:" + environ["PATH"]
 
@@ -161,42 +166,66 @@ class CncInput(Input[CncOutput]):
             "trial",
         ]
 
-    def run(self, working_dir: str) -> CncOutput:
+    def run_lambda(self, working_dir: str) -> CncOutput:
+        assert self.infra in ["gg-local", "gg-lambda"]
         path = search(self.benchmark)
         family = basename(dirname(path))
+        sub.run(
+            [
+                CNC_PATH,
+                "init",
+                "solve",
+                path,
+                str(self.initial_divides),
+                str(self.online_divides),
+                str(self.initial_timeout),
+                str(self.timeout_factor),
+                str(int(self.future_mode)),
+            ],
+            check=True,
+            cwd=working_dir,
+        )
+        eng = self.infra.split("-")[1]
+        s = time()
+        OUTFILE = "out"
+        sub.run(
+            [FORCE_PATH, "--jobs", str(self.jobs), "--engine", eng, OUTFILE],
+            check=True,
+            cwd=working_dir,
+        )
+        duration = time() - s
+        o = open(join(working_dir, OUTFILE)).read().strip()
+        assert len(o) < 20 and Runner.safe_str(o)
+        result = o
+        print(join(working_dir, ".gg"))
+        return CncOutput(result=result, duration=duration, family=family)
+
+    def run_cnc_lingeling(self, working_dir: str) -> CncOutput:
+        assert self.infra in ["cnc-lingeling"]
+        path = search(self.benchmark)
+        family = basename(dirname(path))
+        s = time()
+        r = sub.run([CNC_LINGELING_PATH, path, str(self.jobs), working_dir], check=True, cwd=working_dir, stdout=sub.PIPE)
+        duration = time() - s
+        o = r.stdout.decode()
+        if SAT_RE.search(o) is not None:
+            result = "SAT"
+        elif UNSAT_RE.search(o) is not None:
+            result = "UNSAT"
+        else:
+            print(f"Cannot parse output:\n{o}")
+            raise ValueError("Cannot parse output")
+        return CncOutput(result=result, duration=duration, family=family)
+
+
+    def run(self, working_dir: str) -> CncOutput:
         if self.infra in ["gg-local", "gg-lambda"]:
-            sub.run(
-                [
-                    CNC_PATH,
-                    "init",
-                    "solve",
-                    path,
-                    str(self.initial_divides),
-                    str(self.online_divides),
-                    str(self.initial_timeout),
-                    str(self.timeout_factor),
-                    str(int(self.future_mode)),
-                ],
-                check=True,
-                cwd=working_dir,
-            )
-            eng = self.infra.split("-")[1]
-            s = time()
-            OUTFILE = "out"
-            sub.run(
-                [FORCE_PATH, "--jobs", str(self.jobs), "--engine", eng, OUTFILE],
-                check=True,
-                cwd=working_dir,
-            )
-            duration = time() - s
-            o = open(join(working_dir, OUTFILE)).read().strip()
-            assert len(o) < 20 and Runner.safe_str(o)
-            result = o
-            print(join(working_dir, ".gg"))
+            return self.run_lambda(working_dir)
+        elif self.infra in ["cnc-lingeling"]:
+            return self.run_cnc_lingeling(working_dir)
         else:
             print(f"Invalid infra: {self.infra}")
             exit(1)
-        return CncOutput(result=result, duration=duration, family=family)
 
 
 if __name__ == "__main__":
