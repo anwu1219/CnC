@@ -24,7 +24,7 @@ from exp import Observation, Input, Runner, SDict
 
 from docopt import docopt
 from glob import glob
-from typing import Any, List, NamedTuple
+from typing import Any, List, NamedTuple, Optional
 from os import environ
 from os.path import exists, abspath, dirname, join, basename, split
 from pprint import pprint
@@ -52,8 +52,19 @@ GLUC_PATH = abspath("../iglucose/core/")
 CNC_PATH = abspath("./thunks/cnc.py")
 FORCE_PATH = which("gg-force")
 CNC_LINGELING_PATH = join(REPO_DIR, "cube-lingeling.sh")
+PLINGELING_PATH = join(REPO_DIR, "lingeling", "plingeling")
+CADICAL_PATH = join(REPO_DIR, "cadical", "build", "cadical")
 
 environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:" + environ["PATH"]
+
+
+def returncode_to_result(r: int) -> Optional[str]:
+    if r == 10:
+        return "SAT"
+    elif r == 20:
+        return "UNSAT"
+    else:
+        return None
 
 
 def main() -> None:
@@ -205,7 +216,12 @@ class CncInput(Input[CncOutput]):
         path = search(self.benchmark)
         family = basename(dirname(path))
         s = time()
-        r = sub.run([CNC_LINGELING_PATH, path, str(self.jobs), working_dir], check=True, cwd=working_dir, stdout=sub.PIPE)
+        r = sub.run(
+            [CNC_LINGELING_PATH, path, str(self.jobs), working_dir],
+            check=True,
+            cwd=working_dir,
+            stdout=sub.PIPE,
+        )
         duration = time() - s
         o = r.stdout.decode()
         if SAT_RE.search(o) is not None:
@@ -217,12 +233,27 @@ class CncInput(Input[CncOutput]):
             raise ValueError("Cannot parse output")
         return CncOutput(result=result, duration=duration, family=family)
 
+    def run_solver(self, args: List[str], working_dir: str) -> CncOutput:
+        path = search(self.benchmark)
+        family = basename(dirname(path))
+        s = time()
+        r = sub.run(args, cwd=working_dir)
+        duration = time() - s
+        result = returncode_to_result(r.returncode)
+        if result is None:
+            raise ValueError(f"Bad return code: {r.returncode}")
+        return CncOutput(result=result, duration=duration, family=family)
 
     def run(self, working_dir: str) -> CncOutput:
+        path = search(self.benchmark)
         if self.infra in ["gg-local", "gg-lambda"]:
             return self.run_lambda(working_dir)
         elif self.infra in ["cnc-lingeling"]:
             return self.run_cnc_lingeling(working_dir)
+        elif self.infra in ["plingeling"]:
+            return self.run_solver([PLINGELING_PATH, path, str(self.jobs)], working_dir)
+        elif self.infra in ["cadical"]:
+            return self.run_solver([CADICAL_PATH, path], working_dir)
         else:
             print(f"Invalid infra: {self.infra}")
             exit(1)
