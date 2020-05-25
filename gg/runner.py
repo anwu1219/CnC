@@ -54,6 +54,7 @@ FORCE_PATH = which("gg-force")
 CNC_LINGELING_PATH = join(REPO_DIR, "cube-lingeling.sh")
 PLINGELING_PATH = join(REPO_DIR, "lingeling", "plingeling")
 CADICAL_PATH = join(REPO_DIR, "cadical", "build", "cadical")
+PAINLESS_PATH = join(REPO_DIR, "painless-v2", "painless")
 
 environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:" + environ["PATH"]
 
@@ -254,6 +255,8 @@ class CncInput(Input[CncOutput]):
             return self.run_solver([PLINGELING_PATH, path, str(self.jobs)], working_dir)
         elif self.infra in ["cadical"]:
             return self.run_solver([CADICAL_PATH, path], working_dir)
+        elif self.infra in ["painless"]:
+            return self.run_solver([PAINLESS_PATH, path, f"-c={self.jobs}"], working_dir)
         else:
             print(f"Invalid infra: {self.infra}")
             exit(1)
