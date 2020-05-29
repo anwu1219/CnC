@@ -3,7 +3,9 @@
 # Enable exit-on-error, and command log
 set -xe
 
+
 # Fetch the solvers
+git submodule init
 git submodule update --recursive
 ./fetch_painless.bash
 
