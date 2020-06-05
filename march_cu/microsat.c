@@ -232,7 +232,7 @@ void initCDCL (struct solver* S, int n, int m) {
   if (n < 1)   n = 1;                  // The code assumes that there is at least one variable
   S->nVars       = n;                  // Set the number of variables
   S->nClauses    = m;                  // Set the number of clauases
-  S->mem_max     = 10000000;           // Set the initial maximum memory
+  S->mem_max     = 100000000;           // Set the initial maximum memory
   S->mem_used    = 0;                  // The number of integers allocated in the DB
   S->nLemmas     = 0;                  // The number of learned clauses -- redundant means learned
   S->nConflicts  = 0;                  // Under of conflicts which is used to updates scores
