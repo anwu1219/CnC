@@ -8,13 +8,14 @@ Usage:
   runner.py (-h | --help)
 
 Options:
+  --working-dir DIR     Where to run the experiments [default: /tmp]
   --jobs N              The number of jobs [default: 1]
   --initial-divides N   The initial number of divides [default: 0]
   --online-divides N    The number of divides to do on timeout [default: 2]
-  --future-mode     S   The divide strategy [default: false]
+  --future-mode BOOL    The divide strategy [default: false]
   --timeout N           How long to try for (s) [default: 3600]
   --initial-timeout N   How long to try for (s) before splitting [default: 5]
-  --timeout-factor N    How long to multiply the initial_timeout by each split [default: 1.5]
+  --timeout-factor F    How long to multiply the initial_timeout by each split [default: 1.5]
   --infra I             gg-local, gg-lambda, cnc-lingeling, painless, plingeling, cadical [default: gg-local]
   --painless-mode M     default, dnc [default: default]
   --trial N             the trial number to run [default: 0]
@@ -71,7 +72,7 @@ def returncode_to_result(r: int) -> Optional[str]:
 
 def main() -> None:
     arguments = docopt(__doc__)
-    r = Runner(SCRIPT_DIR, CncInput, CncOutput)  # type: Runner[CncInput, CncOutput]
+    r = Runner(SCRIPT_DIR, CncInput, CncOutput, arguments['--working-dir'])  # type: Runner[CncInput, CncOutput]
     assert arguments["--painless-mode"] in ["default", "dnc"]
     if arguments["run"]:
         arguments["--benchmark"] = basename(search(arguments["<benchmark>"]))

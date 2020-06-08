@@ -1,13 +1,15 @@
 from os import makedirs, listdir
-from os.path import exists, abspath, dirname, join
+from os.path import exists, abspath, dirname, join, split
 from abc import abstractmethod, ABC
 from typing import Any, List, Dict, TypeVar, Generic, Optional
+from shutil import rmtree
 from time import time
 from pprint import pprint
 from copy import deepcopy
 
 DATA_DIR = "data"
 OUTFILE = "output.csv"
+RUN_DIR = "exp_runner"
 
 SDict = Dict[str, str]
 
@@ -48,8 +50,9 @@ class Runner(Generic[I, O]):
     defaults: SDict
     extra_defaults: SDict = {"start_time": "0", "end_time": "0", "hostname": "unknown"}
     script_dir: str
+    tmp_dir: str
 
-    def __init__(self, script_dir: str, I: Any, O: Any):
+    def __init__(self, script_dir: str, I: Any, O: Any, tmp_dir: str):
         self.input_fields = I.fields()
         self.output_fields = O.fields() + self.extra_outputs
         assert set(self.input_fields).isdisjoint(set(self.output_fields))
@@ -58,6 +61,7 @@ class Runner(Generic[I, O]):
             I.default_values(), **O.default_values(), **self.extra_defaults
         )
         self.script_dir = script_dir
+        self.tmp_dir = join(tmp_dir, RUN_DIR)
         assert all(Runner.safe_str(f) for f in self.fields)
 
     @staticmethod
@@ -71,10 +75,10 @@ class Runner(Generic[I, O]):
         return extant_encs[0] if len(extant_encs) > 0 else None
 
     def rundir(self, encoded_inputs: str) -> str:
-        return join(self.script_dir, DATA_DIR, encoded_inputs)
+        return join(self.tmp_dir, encoded_inputs)
 
     def outfile(self, encoded_inputs: str) -> str:
-        return join(self.rundir(encoded_inputs), OUTFILE)
+        return join(self.script_dir, DATA_DIR, encoded_inputs, OUTFILE)
 
     def load(self, p: str) -> SDict:
         header, values = open(p, "r").read().strip().split()
@@ -125,6 +129,7 @@ class Runner(Generic[I, O]):
             if "end_time" not in rr:
                 rr["end_time"] = str(time())
             self.complete(rr)
+            makedirs(split(self.outfile(e))[0], exist_ok=True)
             with open(self.outfile(e), "w") as f:
                 f.writelines(
                     [
@@ -134,6 +139,7 @@ class Runner(Generic[I, O]):
                         "\n",
                     ]
                 )
+            rmtree(wd)
             r = self.find_result(i)
             assert r is not None
         self.complete(r)
