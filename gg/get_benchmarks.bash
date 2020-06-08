@@ -19,12 +19,15 @@ TEST_BENCHMARK_TO="$DOWNLOADS_DIR/random_ksat.dimacs"
 
 SAT09_URL="http://www.cril.univ-artois.fr/SAT09/bench/appli.7z"
 SAT18_URL="http://sat2018.forsyte.tuwien.ac.at/benchmarks/Main.zip"
+SAT18_RANDOM_URL="http://sat2018.forsyte.tuwien.ac.at/benchmarks/Random.zip"
 
 SAT09_ZIP="$DOWNLOADS_DIR/SAT09.7z"
 SAT18_ZIP="$DOWNLOADS_DIR/SAT18.zip"
+SAT18_RANDOM_ZIP="$DOWNLOADS_DIR/SAT18Random.zip"
 
 SAT09_UNZIP_TEST_FILE="$DOWNLOADS_DIR/SAT09"
 SAT18_UNZIP_TEST_FILE="$DOWNLOADS_DIR/Chen"
+SAT18_RANDOM_UNZIP_TEST_FILE="$DOWNLOADS_DIR/BOGUS"
 
 # Download the zips, if needed
 if [[ ! -a $SAT18_ZIP ]]
@@ -35,6 +38,10 @@ if [[ ! -a $SAT09_ZIP ]]
 then
     wget -O $SAT09_ZIP $SAT09_URL
 fi
+if [[ ! -a $SAT18_RANDOM_ZIP ]]
+then
+    wget -O $SAT18_RANDOM_ZIP $SAT18_RANDOM_URL
+fi
 
 # Unzip them, if needed
 if [[ ! -a $SAT09_UNZIP_TEST_FILE ]]
@@ -44,6 +51,10 @@ fi
 if [[ ! -a $SAT18_UNZIP_TEST_FILE ]]
 then
     (cd $DOWNLOADS_DIR && $UNZIP $SAT18_ZIP)
+fi
+if [[ ! -a $SAT18_RANDOM_UNZIP_TEST_FILE ]]
+then
+    (cd $DOWNLOADS_DIR && $UNZIP $SAT18_RANDOM_ZIP)
 fi
 
 if [[ ! -a $TEST_BENCHMARK_TO ]]
