@@ -157,7 +157,7 @@ class CncInput(Input[CncOutput]):
 
     def __init__(self, args):
         for attr, ty in self.__annotations__.items():
-            self.__setattr__(attr, args[argize(attr)])
+            self.__setattr__(attr, parse(ty, args[argize(attr)]))
 
     @staticmethod
     def default_values() -> SDict:
