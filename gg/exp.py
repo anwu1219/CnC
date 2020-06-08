@@ -3,6 +3,8 @@ from os.path import exists, abspath, dirname, join
 from abc import abstractmethod, ABC
 from typing import Any, List, Dict, TypeVar, Generic, Optional
 from time import time
+from pprint import pprint
+from copy import deepcopy
 
 DATA_DIR = "data"
 OUTFILE = "output.csv"
@@ -144,8 +146,8 @@ class Runner(Generic[I, O]):
     def encodings(self, i: I) -> List[str]:
         inputs = i.values()
         l = [inputs[s] for s in self.input_fields]
-        os = [l]
-        while len(l) > 0 and self.input_fields[len(l) - 1] in self.defaults:
+        os = [deepcopy(l)]
+        while len(l) > 0 and self.input_fields[len(l) - 1] in self.defaults and self.defaults[self.input_fields[len(l) - 1]] == l[-1]:
             l.pop()
-            os.append(l)
+            os.append(deepcopy(l))
         return [",".join(o) for o in os]
