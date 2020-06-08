@@ -15,7 +15,8 @@ Options:
   --timeout N           How long to try for (s) [default: 3600]
   --initial-timeout N   How long to try for (s) before splitting [default: 5]
   --timeout-factor N    How long to multiply the initial_timeout by each split [default: 1.5]
-  --infra I             gg-local, gg-lambda, cnc-lingeling [default: gg-local]
+  --infra I             gg-local, gg-lambda, cnc-lingeling, painless, plingeling, cadical [default: gg-local]
+  --painless-mode M     default, dnc [default: default]
   --trial N             the trial number to run [default: 0]
   -h --help             Show this screen.
 """
@@ -71,6 +72,7 @@ def returncode_to_result(r: int) -> Optional[str]:
 def main() -> None:
     arguments = docopt(__doc__)
     r = Runner(SCRIPT_DIR, CncInput, CncOutput)  # type: Runner[CncInput, CncOutput]
+    assert arguments["--painless-mode"] in ["default", "dnc"]
     if arguments["run"]:
         arguments["--benchmark"] = basename(search(arguments["<benchmark>"]))
         a = CncInput(arguments)
@@ -151,6 +153,7 @@ class CncInput(Input[CncOutput]):
     timeout: int
     future_mode: bool
     trial: int
+    painless_mode: str
 
     def __init__(self, args):
         for attr, ty in self.__annotations__.items():
@@ -158,7 +161,8 @@ class CncInput(Input[CncOutput]):
 
     @staticmethod
     def default_values() -> SDict:
-        return {}
+        return { "painless_mode": "default"
+                }
 
     def values(self) -> SDict:
         return {attr: str(self.__getattribute__(attr)) for attr in self.__annotations__}
@@ -176,6 +180,7 @@ class CncInput(Input[CncOutput]):
             "timeout",
             "future_mode",
             "trial",
+            "painless_mode",
         ]
 
     def run_lambda(self, working_dir: str) -> CncOutput:
@@ -256,7 +261,8 @@ class CncInput(Input[CncOutput]):
         elif self.infra in ["cadical"]:
             return self.run_solver([CADICAL_PATH, path], working_dir)
         elif self.infra in ["painless"]:
-            return self.run_solver([PAINLESS_PATH, path, f"-c={self.jobs}"], working_dir)
+            mode_flag = "-wkr-strat=" + ("4" if self.painless_mode == "dnc" else "1")
+            return self.run_solver([PAINLESS_PATH, path, f"-c={self.jobs}", mode_flag], working_dir)
         else:
             print(f"Invalid infra: {self.infra}")
             exit(1)
