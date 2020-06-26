@@ -41,7 +41,7 @@ BENCHMARKS_DIR = f"{SCRIPT_DIR}/benchmarks"
 REPO_DIR = split(SCRIPT_DIR)[0]
 SAT_RE = re.compile("s SATISFIABLE")
 UNSAT_RE = re.compile("s UNSATISFIABLE")
-
+TIMEOUT = "TIMEOUT"
 
 def which(s: str) -> str:
     r = shutil.which(s)
@@ -49,9 +49,9 @@ def which(s: str) -> str:
     return r
 
 
-MARCH_DIR_PATH = abspath("../march_cu")
-GLUC_PATH = abspath("../iglucose/core/")
-CNC_PATH = abspath("./thunks/cnc.py")
+MARCH_DIR_PATH = abspath(join(REPO_DIR, "march_cu"))
+GLUC_PATH = abspath(join(REPO_DIR, "iglucose/core/"))
+CNC_PATH = abspath(join(SCRIPT_DIR, "thunks/cnc.py"))
 FORCE_PATH = which("gg-force")
 CNC_LINGELING_PATH = join(REPO_DIR, "cube-lingeling.sh")
 PLINGELING_PATH = join(REPO_DIR, "lingeling", "plingeling")
@@ -193,8 +193,8 @@ class CncInput(Input[CncOutput]):
             sub.run("bzcat {} > {}".format(path, tmp_cnf_path), shell=True)
         else:
             tmp_cnf_path = path
-            
-        family = basename(dirname(path))
+
+            family = basename(dirname(path))
         sub.run(
             [
                 CNC_PATH,
@@ -208,20 +208,27 @@ class CncInput(Input[CncOutput]):
                 str(int(self.future_mode)),
             ],
             check=True,
-            cwd=working_dir,
+            cwd=working_dir
         )
         eng = self.infra.split("-")[1]
+
         s = time()
-        OUTFILE = "out"
-        sub.run(
-            [FORCE_PATH, "--jobs", str(self.jobs), "--engine", eng, OUTFILE],
-            check=True,
-            cwd=working_dir,
-        )
+        try:
+            OUTFILE = "out"
+            sub.run(
+                [FORCE_PATH, "--jobs", str(self.jobs), "--engine", eng, OUTFILE],
+                check=True,
+                cwd=working_dir,
+                timeout=(self.timeout)
+            )
+            o = open(join(working_dir, OUTFILE)).read().strip()
+            assert len(o) < 20 and Runner.safe_str(o)
+            result = o
+        except sub.TimeoutExpired as e:
+            result = TIMEOUT
+
         duration = time() - s
-        o = open(join(working_dir, OUTFILE)).read().strip()
-        assert len(o) < 20 and Runner.safe_str(o)
-        result = o
+
         print(join(working_dir, ".gg"))
         return CncOutput(result=result, duration=duration, family=family)
 
@@ -237,32 +244,41 @@ class CncInput(Input[CncOutput]):
 
         family = basename(dirname(path))
         s = time()
-        r = sub.run(
-            [CNC_LINGELING_PATH, tmp_cnf_path, str(self.jobs), working_dir],
-            check=True,
-            cwd=working_dir,
-            stdout=sub.PIPE,
-        )
+        try:
+            r = sub.run(
+                [CNC_LINGELING_PATH, tmp_cnf_path, str(self.jobs), working_dir],
+                check=True,
+                cwd=working_dir,
+                stdout=sub.PIPE,
+                timeout = self.timeout
+            )
+            o = r.stdout.decode()
+            if SAT_RE.search(o) is not None:
+                result = "SAT"
+            elif UNSAT_RE.search(o) is not None:
+                result = "UNSAT"
+            else:
+                print(f"Cannot parse output:\n{o}")
+                raise ValueError("Cannot parse output")
+        except sub.TimeoutExpired as e:
+            result = TIMEOUT
+
         duration = time() - s
-        o = r.stdout.decode()
-        if SAT_RE.search(o) is not None:
-            result = "SAT"
-        elif UNSAT_RE.search(o) is not None:
-            result = "UNSAT"
-        else:
-            print(f"Cannot parse output:\n{o}")
-            raise ValueError("Cannot parse output")
         return CncOutput(result=result, duration=duration, family=family)
 
     def run_solver(self, args: List[str], working_dir: str) -> CncOutput:
         path = search(self.benchmark)
         family = basename(dirname(path))
         s = time()
-        r = sub.run(args, cwd=working_dir)
+        try:
+            r = sub.run(args, cwd=working_dir, timeout=self.timeout)
+            result = returncode_to_result(r.returncode)
+            if result is None:
+                raise ValueError(f"Bad return code: {r.returncode}")
+        except sub.TimeoutExpired as e:
+            result = TIMEOUT
+
         duration = time() - s
-        result = returncode_to_result(r.returncode)
-        if result is None:
-            raise ValueError(f"Bad return code: {r.returncode}")
         return CncOutput(result=result, duration=duration, family=family)
 
     def run(self, working_dir: str) -> CncOutput:
