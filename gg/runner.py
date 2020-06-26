@@ -187,13 +187,20 @@ class CncInput(Input[CncOutput]):
     def run_lambda(self, working_dir: str) -> CncOutput:
         assert self.infra in ["gg-local", "gg-lambda"]
         path = search(self.benchmark)
+
+        if ".bz2" in path:
+            tmp_cnf_path = f"{working_dir}/tmp.cnf"
+            sub.run("bzcat {} > {}".format(path, tmp_cnf_path), shell=True)
+        else:
+            tmp_cnf_path = path
+            
         family = basename(dirname(path))
         sub.run(
             [
                 CNC_PATH,
                 "init",
                 "solve",
-                path,
+                tmp_cnf_path,
                 str(self.initial_divides),
                 str(self.online_divides),
                 str(self.initial_timeout),
@@ -221,10 +228,17 @@ class CncInput(Input[CncOutput]):
     def run_cnc_lingeling(self, working_dir: str) -> CncOutput:
         assert self.infra in ["cnc-lingeling"]
         path = search(self.benchmark)
+
+        if ".bz2" in path:
+            tmp_cnf_path = f"{working_dir}/tmp.cnf"
+            sub.run("bzcat {} > {}".format(path, tmp_cnf_path), shell=True)
+        else:
+            tmp_cnf_path = path
+
         family = basename(dirname(path))
         s = time()
         r = sub.run(
-            [CNC_LINGELING_PATH, path, str(self.jobs), working_dir],
+            [CNC_LINGELING_PATH, tmp_cnf_path, str(self.jobs), working_dir],
             check=True,
             cwd=working_dir,
             stdout=sub.PIPE,
@@ -263,7 +277,12 @@ class CncInput(Input[CncOutput]):
             return self.run_solver([CADICAL_PATH, path], working_dir)
         elif self.infra in ["painless"]:
             mode_flag = "-wkr-strat=" + ("4" if self.painless_mode == "dnc" else "1")
-            return self.run_solver([PAINLESS_PATH, path, f"-c={self.jobs}", mode_flag], working_dir)
+            if ".bz2" in path:
+                tmp_cnf_path = f"{working_dir}/tmp.cnf"
+                sub.run("bzcat {} > {}".format(path, tmp_cnf_path), shell=True)
+            else:
+                tmp_cnf_path = path
+            return self.run_solver([PAINLESS_PATH, tmp_cnf_path, f"-c={self.jobs}", mode_flag], working_dir)
         else:
             print(f"Invalid infra: {self.infra}")
             exit(1)
