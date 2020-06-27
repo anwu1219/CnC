@@ -6,6 +6,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 #include "math.h"
 
@@ -234,7 +236,17 @@ int parseCNF( FILE* in )
 			error = 1;
 		    }
 		}
-	    }
+	} else {
+		// Not an integer
+		char* line = NULL;
+		size_t zero = 0;
+		ssize_t line_len = getline(&line, &zero, in);
+		if (line_len > 0 && line[0] == 'c') {
+		    error = 0;
+		}
+		free(line);
+		line = NULL;
+		}
 	}
 
 
