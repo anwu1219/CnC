@@ -7,5 +7,6 @@ common_benchmarks <- (filtered %>% group_by(benchmark) %>% summarize(count = n()
 common_times <- filtered %>% filter(benchmark %in% common_benchmarks) %>% group_by(infra, painless_mode) %>% summarise(sum_duration = sum(duration))
 aggregated <- filtered %>% group_by(infra, painless_mode) %>% summarise(count = n(), sum_duration = sum(duration))
 aggregated
-ggplot
-common_times
+ggplot(filtered) +
+  geom_point(aes(x = solver, y = duration), alpha = 0.7, size = 4, shape = 1) +
+  scale_y_continuous(trans = "log2")
