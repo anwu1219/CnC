@@ -15,7 +15,7 @@ sys.setrecursionlimit(5000)
 
 gg = pygg.init()
 
-solver_path = "iglucose_static"
+solver_path = "cadical"
 march_path = "march_cu"
 
 gg.install(solver_path)
@@ -107,20 +107,21 @@ def solve_(
     if cube.as_str() == "":
         return gg.str_value("UNSAT\n")
 
-    output = "s INDETERMINATE"
+    exitCode = 0
     if initial_divides == 0:
         merged_cnf = "merge"
         appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
         args = [
             gg.bin(solver_path).path(),
             merged_cnf,
-            f"-cpu-lim={timeout}",
+            "-t",
+            f"{int(timeout + 0.5)}",
         ]
-        output = run_for_stdout(args)
+        exitCode = sub.run(args).returncode
         os.remove(merged_cnf)
-    if "UNSAT" in output:
+    if exitCode == 20:
         return gg.str_value("UNSAT\n")
-    elif "s INDETERMINATE" in output:
+    elif exitCode == 0:
         divides = n if initial_divides == 0 else initial_divides
         sub_queries = gg.thunk(split, cnf, cube, divides)
         solve_thunk = []
@@ -141,8 +142,10 @@ def solve_(
             return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
         else:
             return functools.reduce(lambda x, y: gg.thunk(merge_no_fut, x, y), solve_thunk)
+    elif exitCode == 10:
+        return gg.str_value("SAT\n")
     else:
-        return gg.str_value("UNKNOWN\n")
+        raise Exception("Unexpected exit code from base solver!")
 
 @gg.thunk_fn()
 def merge(r1: Optional[pygg.Value], r2: Optional[pygg.Value]) -> pygg.Output:
@@ -166,6 +169,6 @@ def merge_no_fut(r1: pygg.Value, r2: pygg.Value) -> pygg.Output:
     if r1_str == "UNSAT\n" and r2_str == "UNSAT\n":
         return gg.str_value("UNSAT\n")
     else:
-        return gg.str_value("UNKNOWN\n")
+        return gg.str_value("SAT\n")
 
 gg.main()

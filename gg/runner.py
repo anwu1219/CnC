@@ -55,10 +55,11 @@ CNC_PATH = abspath(join(SCRIPT_DIR, "thunks/cnc.py"))
 FORCE_PATH = which("gg-force")
 CNC_LINGELING_PATH = join(REPO_DIR, "cube-lingeling.sh")
 PLINGELING_PATH = join(REPO_DIR, "lingeling", "plingeling")
+CADICAL_DIR_PATH = join(REPO_DIR, "cadical", "build")
 CADICAL_PATH = join(REPO_DIR, "cadical", "build", "cadical")
 PAINLESS_PATH = join(REPO_DIR, "painless-v2", "painless")
 
-environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:" + environ["PATH"]
+environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:{CADICAL_DIR_PATH}:" + environ["PATH"]
 
 
 def returncode_to_result(r: int) -> Optional[str]:
