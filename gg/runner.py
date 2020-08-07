@@ -194,7 +194,7 @@ class CncInput(Input[CncOutput]):
         else:
             tmp_cnf_path = path
 
-            family = basename(dirname(path))
+        family = basename(dirname(path))
         sub.run(
             [
                 CNC_PATH,
