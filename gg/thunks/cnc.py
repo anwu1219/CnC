@@ -53,6 +53,7 @@ def cubeExtend(pathA: str, lineB: str, outputPath: str) -> None:
         with open(outputPath, "w") as f:
             a_lits = a.read().strip().split()[1:-1]
             b_lits = lineB.strip().split()[1:-1]
+            print(f"\nCube CREATE: a {' '.join(it.chain(a_lits, b_lits))} 0\n")
             f.write(f"a {' '.join(it.chain(a_lits, b_lits))} 0\n")
 
 
@@ -66,16 +67,19 @@ def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int) -> List[str]:
 
 @gg.thunk_fn(outputs=split_outputs)
 def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
+    print(f"\nCube TIMEOUT {cube.as_str()}")
     appendCubeAsCnf(cnf.path(), cube.path(), "cnf")
     sub.check_call(
         [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-d", str(n)]
     )
     outputs = {}
+    k = 0
     with open(out_prefix, "r") as f:
         for i, l in enumerate(f.readlines()):
             cubeExtend(cube.path(), l, f"{out_prefix}.{i}")
             outputs[f"{out_prefix}{i}"] = gg.file_value(f"{out_prefix}.{i}")
-    for j in range(2 ** n)[i:]:
+            k += 1;
+    for j in range(2 ** n)[k:]:
         f = open(f"{out_prefix}.{j}", "w")
         f.close()
         outputs[f"{out_prefix}{j}"] = gg.file_value(f"{out_prefix}.{j}")
@@ -120,6 +124,7 @@ def solve_(
         exitCode = sub.run(args).returncode
         os.remove(merged_cnf)
     if exitCode == 20:
+        print(f"\nCube UNSAT {cube.as_str()}")
         return gg.str_value("UNSAT\n")
     elif exitCode == 0:
         divides = n if initial_divides == 0 else initial_divides
