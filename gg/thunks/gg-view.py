@@ -60,16 +60,17 @@ def main():
         h_init = queue.pop()
         h = h_init
         deps = set()
-        times: List[float] = []
+        times: List[Tuple[Hash,float]] = []
         assert h is not None
         while h.tag() != "V":
+            h_evaled = h
             for d in get_deps(h):
                 deps.add(d)
             t = get_time(h)
             if t is not None:
-                times.append(t)
+                times.append((h, t))
             h = get_reduction(h)
-            ts = "".join(f"\n{t}" for t in times)
+            ts = "".join(f"\n{hash_label(h)}\n{t}" for h, t in times)
         nodes.append((h_init, hash_label(h_init) + ts + "\n" + hash_label(h)))
         for d in deps:
             if d.tag() != "V":
