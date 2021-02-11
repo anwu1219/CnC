@@ -120,6 +120,7 @@ def solve_(
             merged_cnf,
             "-t",
             f"{int(timeout + 0.5)}",
+            "-q",
         ]
         exitCode = sub.run(args).returncode
         os.remove(merged_cnf)

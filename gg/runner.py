@@ -16,7 +16,7 @@ Options:
   --timeout N           How long to try for (s) [default: 3600]
   --initial-timeout N   How long to try for (s) before splitting [default: 5]
   --timeout-factor F    How long to multiply the initial_timeout by each split [default: 1.5]
-  --infra I             gg-local, gg-lambda, cnc-lingeling, painless, plingeling, cadical [default: gg-local]
+  --infra I             gg-local, gg-lambda, cnc-lingeling, painless, plingeling, cadical, parac [default: gg-local]
   --painless-mode M     default, dnc [default: default]
   --trial N             the trial number to run [default: 0]
   -h --help             Show this screen.
@@ -58,8 +58,10 @@ PLINGELING_PATH = join(REPO_DIR, "lingeling", "plingeling")
 CADICAL_DIR_PATH = join(REPO_DIR, "cadical", "build")
 CADICAL_PATH = join(REPO_DIR, "cadical", "build", "cadical")
 PAINLESS_PATH = join(REPO_DIR, "painless-v2", "painless")
+PARAC_PATH = join(REPO_DIR, "Paracooba", "build", "parac")
+PARAC_DIR_PATH = join(REPO_DIR, "Paracooba", "build")
 
-environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:{CADICAL_DIR_PATH}:" + environ["PATH"]
+environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:{CADICAL_DIR_PATH}:{PARAC_PATH}" + environ["PATH"]
 
 
 def returncode_to_result(r: int) -> Optional[str]:
@@ -282,6 +284,27 @@ class CncInput(Input[CncOutput]):
         duration = time() - s
         return CncOutput(result=result, duration=duration, family=family)
 
+    def run_parac(self, working_dir: str) -> CncOutput:
+        path = search(self.benchmark)
+        family = basename(dirname(path))
+        s = time()
+        try:
+            args = [PARAC_PATH, "--threads", str(self.jobs), path]
+            r = sub.run(args, cwd=working_dir, timeout=self.timeout, stdout=sub.PIPE)
+            assert r.returncode == 0
+            o = r.stdout.decode()
+            if "s UNSAT" in o:
+                result = "UNSAT"
+            elif "s SAT" in o:
+                result = "SAT"
+            else:
+                raise ValueError(f"Bad return code: {r.returncode}")
+        except sub.TimeoutExpired as e:
+            result = TIMEOUT
+
+        duration = time() - s
+        return CncOutput(result=result, duration=duration, family=family)
+
     def run(self, working_dir: str) -> CncOutput:
         path = search(self.benchmark)
         if self.infra in ["gg-local", "gg-lambda"]:
@@ -292,6 +315,8 @@ class CncInput(Input[CncOutput]):
             return self.run_solver([PLINGELING_PATH, path, str(self.jobs)], working_dir)
         elif self.infra in ["cadical"]:
             return self.run_solver([CADICAL_PATH, path], working_dir)
+        elif self.infra in ["parac"]:
+            return self.run_parac(working_dir)
         elif self.infra in ["painless"]:
             mode_flag = "-wkr-strat=" + ("4" if self.painless_mode == "dnc" else "1")
             if ".bz2" in path:

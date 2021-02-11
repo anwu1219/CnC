@@ -4,3 +4,7 @@
 [submodule "lingeling"]
 	path = lingeling
 	url = https://github.com/arminbiere/lingeling.git
+[submodule "Paracooba"]
+	path = Paracooba
+	url = https://github.com/maximaximal/Paracooba.git
+	branch = master
