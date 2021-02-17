@@ -14,6 +14,8 @@ ggplot(data = d %>%
          arrange(duration) %>%
          mutate(ct = row_number())
          ) +
-  geom_step(aes(x=duration, y = ct, color = name)) +
-  labs(x= "Seconds", y = "Solved", color = "System")
+  geom_step(aes(y=duration, x = ct, color = name)) +
+  labs(y= "Seconds", x = "Solved", color = "System") +
+  annotate("segment", x = 0, y = 3600, xend = 15, yend = 3600) +
+  xlim(0, 15)
 ggsave("cactus.pdf")
