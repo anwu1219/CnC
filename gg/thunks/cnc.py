@@ -69,16 +69,22 @@ def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int) -> List[str]:
 def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
     print(f"\nCube TIMEOUT {cube.as_str()}")
     appendCubeAsCnf(cnf.path(), cube.path(), "cnf")
-    sub.check_call(
+    res = sub.run(
         [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-d", str(n)]
     )
     outputs = {}
     k = 0
-    with open(out_prefix, "r") as f:
-        for i, l in enumerate(f.readlines()):
-            cubeExtend(cube.path(), l, f"{out_prefix}.{i}")
-            outputs[f"{out_prefix}{i}"] = gg.file_value(f"{out_prefix}.{i}")
-            k += 1;
+    if res.returncode == 20:
+        # No cubes, we are unsat!
+        pass
+    elif res.returncode == 0:
+        with open(out_prefix, "r") as f:
+            for i, l in enumerate(f.readlines()):
+                cubeExtend(cube.path(), l, f"{out_prefix}.{i}")
+                outputs[f"{out_prefix}{i}"] = gg.file_value(f"{out_prefix}.{i}")
+                k += 1;
+    else:
+        raise ValueError(f"Unexpected march return code: {res.returncode}")
     for j in range(2 ** n)[k:]:
         f = open(f"{out_prefix}.{j}", "w")
         f.close()
@@ -97,6 +103,31 @@ def solve(
         solve_, cnf, gg.str_value("a 0"), initial_divides, n, timeout, timeout_factor, fut
     )
 
+def run_solver(path: str, timeout: int) -> str:
+    """ returns a string: 'SAT' 'UNSAT' or '' """
+    args = [
+        gg.bin(solver_path).path(),
+        path,
+        "-t",
+        f"{int(timeout+0.5)}",
+        "-q",
+    ]
+    res = sub.run(args, stdout=sub.PIPE, stderr=sub.PIPE)
+    out = res.stdout.decode()
+    err = res.stderr.decode()
+    exitCode = res.returncode
+    if exitCode == 20 or "s UNSAT" in out:
+        return "UNSAT"
+    elif exitCode == 10 or "s SAT" in err:
+        return "SAT"
+    elif exitCode == 0:
+        return ""
+    else:
+        print("Output:", out)
+        print("Error:", err)
+        raise Exception("Unknown base solve result. Exit code: " + str(exitCode))
+
+
 @gg.thunk_fn()
 def solve_(
     cnf: pygg.Value,
@@ -111,23 +142,16 @@ def solve_(
     if cube.as_str() == "":
         return gg.str_value("UNSAT\n")
 
-    exitCode = 0
+    result = ""
     if initial_divides == 0:
         merged_cnf = "merge"
         appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
-        args = [
-            gg.bin(solver_path).path(),
-            merged_cnf,
-            "-t",
-            f"{int(timeout + 0.5)}",
-            "-q",
-        ]
-        exitCode = sub.run(args).returncode
+        result = run_solver(merged_cnf, min(800, timeout))
         os.remove(merged_cnf)
-    if exitCode == 20:
+    if result == "UNSAT":
         print(f"\nCube UNSAT {cube.as_str()}")
         return gg.str_value("UNSAT\n")
-    elif exitCode == 0:
+    elif result == "":
         divides = n if initial_divides == 0 else initial_divides
         sub_queries = gg.thunk(split, cnf, cube, divides)
         solve_thunk = []
@@ -148,10 +172,10 @@ def solve_(
             return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
         else:
             return functools.reduce(lambda x, y: gg.thunk(merge_no_fut, x, y), solve_thunk)
-    elif exitCode == 10:
+    elif result == "SAT":
         return gg.str_value("SAT\n")
     else:
-        raise Exception("Unexpected exit code from base solver!")
+        raise Exception("Bad result: " + result)
 
 @gg.thunk_fn()
 def merge(r1: Optional[pygg.Value], r2: Optional[pygg.Value]) -> pygg.Output:
