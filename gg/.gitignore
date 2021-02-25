@@ -1,6 +1,7 @@
 benchmarks
 downloads
 data
+data_buggy
 __pycache__
 .mypy_cache
 

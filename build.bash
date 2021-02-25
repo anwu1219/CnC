@@ -15,3 +15,4 @@ git submodule update --recursive
 (cd lingeling && ./configure.sh -static && make -j $(nproc))
 (cd cadical && env CXXFLAGS=-static ./configure && cd build && make -j $(nproc))
 (cd painless-v2 && make -j$(nproc))
+(cd Paracooba && mkdir build && cd build && cmake .. && make -j 1)
