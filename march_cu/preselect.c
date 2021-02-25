@@ -275,7 +275,7 @@ void RealisePreselectedSet () {
 //	max_preselected = (int) (percent * 0.01 * freevars );
 //	max_preselected = (int) (freevars / (1.0 + 0.3 * depth) );
 //	max_preselected = 200;
-	max_preselected = freevars;
+	// max_preselected = freevars;
 #endif
         lookaheadArrayLength = 0;
 	_freevarsArray = CandidatesSet;
