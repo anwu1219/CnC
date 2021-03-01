@@ -109,12 +109,12 @@ def solve(
         fut,
     )
 
-def run_solver(path: str, timeout: int) -> str:
+def run_solver(path: str, timeout: float) -> str:
     """ returns a string: 'SAT' 'UNSAT' or '' """
     args = [
         gg.bin(solver_path).path(),
         path,
-        "-f",
+        "-f", # Tell cadical to ignore bad CNF header
         "-t",
         f"{int(timeout+0.5)}",
         "-q",
@@ -153,10 +153,13 @@ def solve_(
     if initial_divides == 0:
         new_cnf = CubePlusCnf(cnf.path(), cube.path())
         result = run_solver(new_cnf.path, min(800, timeout))
-        del new_cnf
+        del new_cnf # Truncates file
+
     if result == "UNSAT":
         print(f"\nCube UNSAT {cube.as_str()}")
         return gg.str_value("UNSAT\n")
+    elif result == "SAT":
+        return gg.str_value("SAT\n")
     elif result == "":
         divides = n if initial_divides == 0 else initial_divides
         sub_queries = gg.thunk(split, cnf, cube, divides)
@@ -179,8 +182,6 @@ def solve_(
             return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
         else:
             return functools.reduce(lambda x, y: gg.thunk(merge_no_fut, x, y), solve_thunk)
-    elif result == "SAT":
-        return gg.str_value("SAT\n")
     else:
         raise Exception("Bad result: " + result)
 
