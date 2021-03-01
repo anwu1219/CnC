@@ -1,11 +1,11 @@
 #!/bin/bash
 
-export PYTHONPATH=/barrett/scratch/haozewu/gg-parallelization/gg/tools/pygg/:$PYTHONPATH
-PATH=/barrett/scratch/haozewu/gg-parallelization/CnC/gg/frontend:$PATH
+export PYTHONPATH=/homes/haozewu/CnC/gg/gg/tools/pygg/:$PYTHONPATH
+PATH=/homes/haozewu/CnC/gg/frontend:$PATH
 
-source /barrett/scratch/haozewu/gg-parallelization/py37/bin/activate
+source /homes/haozewu/py3.6/bin/activate
 
-python3.7 /barrett/scratch/haozewu/gg-parallelization/CnC/gg/runner.py "$@"
+python /homes/haozewu/CnC/gg/runner.py "$@"
 
 deactivate
 

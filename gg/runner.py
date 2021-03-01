@@ -35,6 +35,8 @@ import re
 import shutil
 import subprocess as sub
 from time import time
+import socket
+from random import randint
 
 SCRIPT_DIR = abspath(dirname(abspath(__file__)))
 BENCHMARKS_DIR = f"{SCRIPT_DIR}/benchmarks"
@@ -62,6 +64,16 @@ PARAC_PATH = join(REPO_DIR, "Paracooba", "build", "parac")
 PARAC_DIR_PATH = join(REPO_DIR, "Paracooba", "build")
 
 environ["PATH"] = f"{MARCH_DIR_PATH}:{GLUC_PATH}:{CADICAL_DIR_PATH}:{PARAC_PATH}" + environ["PATH"]
+
+def rand_free_port():
+    r = 1
+    while r != 0:
+        p = randint(8000,2**16-1)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        r = s.connect_ex(("127.0.0.1", p))
+        s.close()
+    print("Port:", p)
+    return p
 
 
 def returncode_to_result(r: int) -> Optional[str]:
@@ -289,7 +301,13 @@ class CncInput(Input[CncOutput]):
         family = basename(dirname(path))
         s = time()
         try:
-            args = [PARAC_PATH, "--threads", str(self.jobs), path]
+            p = rand_free_port()
+            args = [PARAC_PATH, "--threads", str(self.jobs),
+                     "--udp-listen-port", str(p),
+                     "--tcp-listen-port", str(p),
+                     "--udp-target-port", str(p),
+                     "--tcp-target-port", str(p),
+                    path]
             r = sub.run(args, cwd=working_dir, timeout=self.timeout, stdout=sub.PIPE)
             assert r.returncode == 0
             o = r.stdout.decode()
@@ -298,6 +316,7 @@ class CncInput(Input[CncOutput]):
             elif "s SAT" in o:
                 result = "SAT"
             else:
+                print(o)
                 raise ValueError(f"Bad return code: {r.returncode}")
         except sub.TimeoutExpired as e:
             result = TIMEOUT

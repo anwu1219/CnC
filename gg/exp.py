@@ -139,7 +139,7 @@ class Runner(Generic[I, O]):
                         "\n",
                     ]
                 )
-            rmtree(wd)
+            #rmtree(wd)
             r = self.find_result(i)
             assert r is not None
         self.complete(r)
