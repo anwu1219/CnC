@@ -265,7 +265,7 @@ void RealisePreselectedSet () {
 */
 
 	if     (  depth <=  2  )    max_preselected = 10000; else
-	if     (  depth <=  4  )    max_preselected = 50000; else
+	if     (  depth <=  4  )    max_preselected = 5000; else
 	if(    (  depth <=  8  )  ||
 	 (3 * nrofceq > freevars )  )    		  // multiplier
 				  max_preselected = 2500;
