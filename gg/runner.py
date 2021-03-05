@@ -221,6 +221,7 @@ class CncInput(Input[CncOutput]):
                 str(self.initial_timeout),
                 str(self.timeout_factor),
                 str(int(self.future_mode)),
+                str(int(self.infra == "gg-lambda")), # modify
             ],
             check=True,
             cwd=working_dir
