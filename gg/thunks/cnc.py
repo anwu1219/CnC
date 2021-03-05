@@ -9,7 +9,7 @@ import functools
 import subprocess as sub
 import tempfile
 import itertools as it
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import sys
 
@@ -24,6 +24,53 @@ gg.install(solver_path)
 gg.install(march_path)
 
 out_prefix = "cube"
+
+
+def get_cnf_header(cnf_path: str) -> Tuple[int,int]:
+    """ returns (vars, clauses) """
+    _, _, v, c = (
+        sub.run(f"grep 'p cnf' {cnf_path} | head -n 1", shell=True, stdout=sub.PIPE, check=True)
+        .stdout.decode()
+        .split()
+    )
+    return (int(v), int(c))
+
+
+def change_header(cnf_path: str, old: Tuple[int,int], new: Tuple[int,int]):
+    o = f"{old[0]} {old[1]}"
+    n = f"{new[0]} {new[1]}"
+    sub.run(f"sed -i 's/{o}/{n}/' {cnf_path}", shell=True, check=True)
+
+
+class CubePlusCnf(object):
+    path: str
+    old_header: Optional[Tuple[int,int]]
+    old_len: int
+
+    def __init__(self, cnf_path: str, cube_path: str, modify: bool):
+        if modify:
+            self.old_len = os.path.getsize(cnf_path)
+            lits = open(cube_path, "r").read().strip().split()[1:-1]
+            v, c = get_cnf_header(cnf_path)
+            self.old_header = (v, c)
+            self.path = cnf_path
+            change_header(self.path, self.old_header, (v, c + len(lits)))
+            with open(self.path, "a") as f:
+                f.writelines(f"{l} 0\n" for l in lits)
+        else:
+            appendCubeAsCnf(cnf_path, cube_path, "merge.cnf")
+            self.path = "merge.cnf"
+            self.old_header = None
+            self.old_len = 0
+
+    def __del__(self):
+        if self.old_header is None:
+            os.remove(self.path)
+        else:
+            new = get_cnf_header(self.path)
+            change_header(self.path, new, self.old_header)
+            os.truncate(self.path, self.old_len)
+
 
 def appendCubeAsCnf(cnfPath: str, cubePath: str, mergedPath: str) -> None:
     """ Glues a CNF file and a cube file, creating a CNF file
@@ -63,17 +110,16 @@ def run_for_stdout(cmd: List[str]) -> str:
     return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
 
 
-def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int) -> List[str]:
+def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int, modify: int) -> List[str]:
     return [f"{out_prefix}{i}" for i in range(2 ** n)]
 
 
 @gg.thunk_fn(outputs=split_outputs)
-def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
+def split(cnf: pygg.Value, cube: pygg.Value, n: int, modify: int) -> pygg.OutputDict:
     print(f"\nCube TIMEOUT {cube.as_str()}")
-    appendCubeAsCnf(cnf.path(), cube.path(), "cnf")
-    res = sub.run(
-        [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-d", str(n)]
-    )
+    merged = CubePlusCnf(cnf.path(), cube.path(), modify != 0)
+    res = sub.run([gg.bin(march_path).path(), merged.path, "-o", out_prefix, "-d", str(n)])
+    del merged
     outputs = {}
     k = 0
     if res.returncode == 20:
@@ -84,7 +130,7 @@ def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
             for i, l in enumerate(f.readlines()):
                 cubeExtend(cube.path(), l, f"{out_prefix}.{i}")
                 outputs[f"{out_prefix}{i}"] = gg.file_value(f"{out_prefix}.{i}")
-                k += 1;
+                k += 1
     else:
         raise ValueError(f"Unexpected march return code: {res.returncode}")
     for j in range(2 ** n)[k:]:
@@ -92,7 +138,6 @@ def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
         f.close()
         outputs[f"{out_prefix}{j}"] = gg.file_value(f"{out_prefix}.{j}")
     os.remove(out_prefix)
-    os.remove("cnf")
     return outputs
 
 
@@ -104,6 +149,7 @@ def solve(
     timeout: float,
     timeout_factor: float,
     fut: int,
+    modify: int,
 ) -> Output:
     return gg.thunk(
         solve_,
@@ -114,14 +160,16 @@ def solve(
         timeout,
         timeout_factor,
         fut,
+        modify,
     )
+
 
 def run_solver(path: str, timeout: float) -> str:
     """ returns a string: 'SAT' 'UNSAT' or '' """
     args = [
         gg.bin(solver_path).path(),
         path,
-        "-f", # Tell cadical to ignore bad CNF header
+        "-f",  # Tell cadical to ignore bad CNF header
         "-t",
         f"{int(timeout+0.5)}",
         "-q",
@@ -151,6 +199,7 @@ def solve_(
     timeout: float,
     timeout_factor: float,
     fut: int,
+    modify: int,
 ) -> Output:
     # Empty cube as a placeholder
     if cube.as_str() == "":
@@ -158,18 +207,19 @@ def solve_(
 
     result = ""
     if initial_divides == 0:
-        merged_cnf = "merge"
-        appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
-        result = run_solver(merged_cnf, min(800, timeout))
-        os.remove(merged_cnf)
+        merged = CubePlusCnf(cnf.path(), cube.path(), modify != 0)
+        result = run_solver(merged.path, min(800, timeout))
+        del merged
     if result == "UNSAT":
         print(f"\nCube UNSAT {cube.as_str()}")
         return gg.str_value("UNSAT\n")
     elif result == "SAT":
         return gg.str_value("SAT\n")
     elif result == "":
-        divides = n if initial_divides == 0 else initial_divides
-        sub_queries = gg.thunk(split, cnf, cube, divides)
+        desired_divides = n if initial_divides == 0 else initial_divides
+        divides = min(9, desired_divides)
+        left_over_divides = desired_divides - divides
+        sub_queries = gg.thunk(split, cnf, cube, divides, modify)
         solve_thunk = []
         for i in range(2 ** divides):
 
@@ -178,17 +228,20 @@ def solve_(
                     solve_,
                     cnf,
                     sub_queries[f"{out_prefix}{i}"],
-                    0,
+                    left_over_divides,
                     n,
                     timeout * timeout_factor,
                     timeout_factor,
                     fut,
+                    modify,
                 )
             )
         if fut != 0:
             return functools.reduce(lambda x, y: gg.thunk(merge, x, y), solve_thunk)
         else:
-            return functools.reduce(lambda x, y: gg.thunk(merge_no_fut, x, y), solve_thunk)
+            return functools.reduce(
+                lambda x, y: gg.thunk(merge_no_fut, x, y), solve_thunk
+            )
     else:
         raise Exception("Bad result: " + result)
 
