@@ -168,7 +168,9 @@ def solve_(
     elif result == "SAT":
         return gg.str_value("SAT\n")
     elif result == "":
-        divides = n if initial_divides == 0 else initial_divides
+        desired_divides = n if initial_divides == 0 else initial_divides
+        divides = min(9, desired_divides)
+        left_over_divides = desired_divides - divides
         sub_queries = gg.thunk(split, cnf, cube, divides)
         solve_thunk = []
         for i in range(2 ** divides):
@@ -178,7 +180,7 @@ def solve_(
                     solve_,
                     cnf,
                     sub_queries[f"{out_prefix}{i}"],
-                    0,
+                    left_over_divides,
                     n,
                     timeout * timeout_factor,
                     timeout_factor,
