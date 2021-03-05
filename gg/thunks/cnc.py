@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 # ARGS: fib 5
 # RESULT: 5
 # Copied
@@ -25,26 +25,29 @@ gg.install(march_path)
 
 out_prefix = "cube"
 
-
-class CubePlusCnf(object):
-    """ Appends a cube to a cnf, and truncates when the object is dropped """
-
-    path: str
-    cnf_orig_size: int
-    alternate_cnf: str
-
-    def __init__(self, cnf_path: str, cube_path: str):
-        self.cnf_orig_size = os.path.getsize(cnf_path)
-        self.path = cnf_path
-        with open(cnf_path, "a") as cnf_file:
-            with open(cube_path, "r") as cube_file:
-                # We're invalidating the header. Must notify solvers.
-                cnf_file.writelines(
-                    [f"{l} 0\n" for l in cube_file.readlines()[0].split()[1:-1]]
-                )
-
-    def __del__(self):
-        os.truncate(self.path, self.cnf_orig_size)
+def appendCubeAsCnf(cnfPath: str, cubePath: str, mergedPath: str) -> None:
+    """ Glues a CNF file and a cube file, creating a CNF file
+    Assumes a single cube line.
+    """
+    with open(mergedPath, "w") as out_file:
+        cubeToWrite = ""
+        numLitsinCube = 0  # Number of literals in the cube
+        with open(cubePath, "r") as in_file:
+            line = in_file.readlines()[0]
+            for lit in line.split()[1:-1]:
+                numLitsinCube += 1
+                # Adding the literal as a clause
+                cubeToWrite += f"{lit} 0\n"
+        with open(cnfPath, "r") as in_file:
+            for line in in_file.readlines():
+                if line[0] == "p":
+                    numClause = int(line.split()[-1])
+                    out_file.write(
+                        " ".join(line.split()[:-1]) + f" {numClause + numLitsinCube}\n"
+                    )
+                elif line[0] != "c":
+                    out_file.write(line)
+        out_file.write(cubeToWrite)
 
 
 def cubeExtend(pathA: str, lineB: str, outputPath: str) -> None:
@@ -56,16 +59,20 @@ def cubeExtend(pathA: str, lineB: str, outputPath: str) -> None:
             f.write(f"a {' '.join(it.chain(a_lits, b_lits))} 0\n")
 
 
-def split_outputs(_cnf: Value, _cube: Value, n: int) -> List[str]:
+def run_for_stdout(cmd: List[str]) -> str:
+    return sub.run(cmd, check=True, stdout=sub.PIPE).stdout.decode()
+
+
+def split_outputs(_cnf: pygg.Value, _cube: pygg.Value, n: int) -> List[str]:
     return [f"{out_prefix}{i}" for i in range(2 ** n)]
 
 
 @gg.thunk_fn(outputs=split_outputs)
-def split(cnf: Value, cube: Value, n: int) -> OutputDict:
+def split(cnf: pygg.Value, cube: pygg.Value, n: int) -> pygg.OutputDict:
     print(f"\nCube TIMEOUT {cube.as_str()}")
-    new_cnf = CubePlusCnf(cnf.path(), cube.path())
+    appendCubeAsCnf(cnf.path(), cube.path(), "cnf")
     res = sub.run(
-        [gg.bin(march_path).path(), new_cnf.path, "-o", out_prefix, "-d", str(n)]
+        [gg.bin(march_path).path(), "cnf", "-o", out_prefix, "-d", str(n)]
     )
     outputs = {}
     k = 0
@@ -85,7 +92,7 @@ def split(cnf: Value, cube: Value, n: int) -> OutputDict:
         f.close()
         outputs[f"{out_prefix}{j}"] = gg.file_value(f"{out_prefix}.{j}")
     os.remove(out_prefix)
-    del new_cnf
+    os.remove("cnf")
     return outputs
 
 
@@ -151,10 +158,10 @@ def solve_(
 
     result = ""
     if initial_divides == 0:
-        new_cnf = CubePlusCnf(cnf.path(), cube.path())
-        result = run_solver(new_cnf.path, min(800, timeout))
-        del new_cnf # Truncates file
-
+        merged_cnf = "merge"
+        appendCubeAsCnf(cnf.path(), cube.path(), merged_cnf)
+        result = run_solver(merged_cnf, min(800, timeout))
+        os.remove(merged_cnf)
     if result == "UNSAT":
         print(f"\nCube UNSAT {cube.as_str()}")
         return gg.str_value("UNSAT\n")
